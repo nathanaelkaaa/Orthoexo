@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { User, Brain, ArrowRight, MessageSquare, Users, BarChart3, BookOpen, LogOut, Upload } from 'lucide-react';
+import { User, Brain, ArrowRight, MessageSquare, Users, BarChart3, BookOpen, LogOut, Upload, Play, Check, X } from 'lucide-react';
 import { registerUser, loginUser, logoutUser, observeAuthState } from './services/authService';
-import { addPractitioner } from './services/firestoreService';
+import { addPractitioner, createSession, listenForActiveSession, sendAnswer, updateSessionStatus, observeSessionById, clearUserSessions,deleteSession  } from './services/firestoreService';
 import { getWordsByLevel, getIrregularWords, searchWordsInFirestore } from './services/manulexService';
 
 const OrthoApp = () => {
@@ -294,6 +294,66 @@ const OrthoApp = () => {
       </div>
     </div>
   );
+  // Praticien Monitor
+  const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) => {
+    const [liveData, setLiveData] = useState(sessionData);
+
+    useEffect(() => {
+      // Met à jour les données en temps réel quand le patient répond
+      const unsubscribe = observeSessionById(sessionData.id, (data) => setLiveData(data));
+      return () => unsubscribe();
+    }, [sessionData.id]);
+
+    const answers = liveData.patientAnswers || [];
+    const isFinished = answers.length >= liveData.words.length;
+
+    const handleFinishAndSave = async () => {
+      // Sauvegarde dans l'historique local du praticien
+      saveExerciseToHistory(liveData.type, liveData.words, answers);
+      await deleteSession(liveData.id);
+      onFinish();
+    };
+
+    return (
+      <div className="bg-white p-8 rounded-xl shadow-lg max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold flex items-center gap-3">
+            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+            Suivi Patient en Direct
+          </h2>
+          <div className="text-gray-500">Progression : {answers.length} / {liveData.words.length}</div>
+        </div>
+        <div className="grid grid-cols-2 gap-8 mb-8">
+          <div>
+            <h3 className="font-bold mb-4">Mots et Réponses</h3>
+            <ul className="space-y-2">
+              {liveData.words.map((word, idx) => {
+                const answer = answers[idx];
+                const statusColor = answer ? (answer.correct ? "text-green-600 font-bold" : "text-red-600 font-bold") : "text-gray-400";
+                return (
+                  <li key={idx} className={`flex items-center justify-between p-3 bg-gray-50 rounded ${statusColor}`}>
+                    <span>{word}</span>
+                    <span className="flex items-center gap-2">
+                      {answer ? answer.userAnswer : "..."} {answer && (answer.correct ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+          <div className="bg-blue-50 p-6 rounded-xl flex flex-col justify-center text-center">
+            <h3 className="text-xl font-bold mb-2">Note actuelle</h3>
+            <div className="text-5xl font-bold text-blue-600 mb-2">{answers.filter(a => a.correct).length} / {answers.length}</div>
+            {isFinished ? (
+              <button onClick={handleFinishAndSave} className="mt-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">Terminer & Sauvegarder</button>
+            ) : (
+              <p className="text-gray-500 mt-4">Le patient est en train de répondre...</p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Praticien Page
   const PraticienPage = () => {
@@ -566,6 +626,7 @@ const OrthoApp = () => {
   const WordSelectionView = ({ category, onBack }) => {
     const [wordView, setWordView] = useState('selection');
     const [selectedWords, setSelectedWords] = useState([]);
+    const [activeSession, setActiveSession] = useState(null);
 
     // Charger les mots sauvegardés au démarrage
     useEffect(() => {
@@ -594,12 +655,40 @@ const OrthoApp = () => {
       setWordView('exerciseType');
     };
 
+    const handleLaunchForPatient = async () => {
+      console.log("Tentative de lancement..."); // DEBUG
+      if (selectedWords.length < 1) return alert("Sélectionnez des mots.");
+      
+      try {
+        console.log("Création de session pour", currentUser.uid); // DEBUG
+        const sessionId = await createSession(currentUser.uid, 'anagram', selectedWords);
+        setActiveSession({ id: sessionId, type: 'anagram', words: selectedWords, patientAnswers: [] });
+        setWordView('monitor');
+      } catch (e) {
+        console.error(e);
+        alert("Erreur : " + e.message);
+      }
+    };
+
     const handleClearSelection = () => {
       if (window.confirm('Êtes-vous sûr de vouloir effacer tous les mots sélectionnés ?')) {
         setSelectedWords([]);
         localStorage.removeItem('selectedWords');
       }
     };
+
+    if (wordView === 'monitor' && activeSession) {
+      return (
+        <div>
+           <button onClick={() => setWordView('selection')} className="mb-6 flex items-center gap-2 text-gray-600"><ArrowRight className="w-4 h-4 rotate-180" /> Retour</button>
+           <PractitionerMonitor 
+             sessionData={activeSession} 
+             onFinish={() => setWordView('selection')}
+             saveExerciseToHistory={saveExerciseToHistory} // Assurez-vous que cette fonction est accessible ici ou passée en prop
+           />
+        </div>
+      );
+    }
 
     return (
       <div>
@@ -651,6 +740,7 @@ const OrthoApp = () => {
             onBack={() => setWordView('selection')}
             selectedWords={selectedWords}
             onSelectType={(type) => setWordView('exercise-' + type)}
+            onLaunchForPatient={handleLaunchForPatient}
           />
         )}
 
@@ -910,7 +1000,7 @@ const OrthoApp = () => {
   };
 
   // Exercise Type Selection
-  const ExerciseTypeSelection = ({ onBack, selectedWords, onSelectType }) => (
+  const ExerciseTypeSelection = ({ onBack, selectedWords, onSelectType, onLaunchForPatient }) => (
     <div>
       <button 
         onClick={onBack}
@@ -927,13 +1017,30 @@ const OrthoApp = () => {
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div 
-          onClick={() => onSelectType('anagram')}
-          className="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition cursor-pointer group"
-        >
-          <MessageSquare className="w-16 h-16 text-blue-600 mb-4 group-hover:scale-110 transition" />
-          <h3 className="text-xl font-bold mb-2">Anagramme</h3>
-          <p className="text-gray-600 text-sm">Retrouvez le mot correct à partir des lettres mélangées</p>
+        <div className="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition cursor-pointer group relative">
+          
+          {/* Clic pour faire l'exercice soi-même (Praticien) */}
+          <div onClick={() => onSelectType('anagram')}>
+            <MessageSquare className="w-16 h-16 text-blue-600 mb-4 group-hover:scale-110 transition" />
+            <h3 className="text-xl font-bold mb-2">Anagramme</h3>
+            <p className="text-gray-600 text-sm mb-4">Retrouvez le mot correct à partir des lettres mélangées</p>
+          </div>
+          
+          {/* Clic pour lancer au patient */}
+          <button 
+            onClick={(e) => {
+              e.stopPropagation(); // Empêche de lancer l'exercice local en même temps
+              if (onLaunchForPatient) {
+                onLaunchForPatient();
+              } else {
+                console.error("Fonction onLaunchForPatient manquante");
+              }
+            }}
+            className="w-full py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2 mt-2 font-bold z-10 relative"
+          >
+            <Play className="w-4 h-4" /> Lancer pour le patient
+          </button>
+
         </div>
       </div>
     </div>
@@ -1478,34 +1585,262 @@ const OrthoApp = () => {
   };
 
   // Patient Page
-  const PatientPage = () => (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
-        <div className="container mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Brain className="w-8 h-8 text-purple-600" />
-            <span className="text-xl font-bold">Espace Patient</span>
-          </div>
+  const PatientPage = () => {
+    const [status, setStatus] = useState('searching');
+    const [session, setSession] = useState(null);
+    
+    // États pour gérer l'exercice comme le Praticien
+    const [currentWordIndex, setCurrentWordIndex] = useState(0);
+    const [userAnswer, setUserAnswer] = useState('');
+    const [showResult, setShowResult] = useState(false);
+    const [isCorrect, setIsCorrect] = useState(false);
+    const [localResults, setLocalResults] = useState([]); // Pour afficher les points en bas
+    const [scrambledWord, setScrambledWord] = useState('');
+
+    // Écouter la session
+    useEffect(() => {
+      const unsubscribe = listenForActiveSession(currentUser.uid, (sessionData) => {
+        if (sessionData) {
+          setSession(sessionData);
+          
+          // LOGIQUE MODIFIÉE ICI :
+          if (sessionData.status === 'finished') {
+            setStatus('result');
+          } else if (sessionData.status === 'active') {
+            setStatus('active'); // L'exercice est lancé
+          } else if (sessionData.status === 'waiting') {
+            setStatus('waiting'); // On affiche l'écran de "Prêt ?"
+          }
+        } else {
+          setSession(null); 
+          setStatus('searching');
+        }
+      });
+      return () => unsubscribe();
+    }, []);
+
+    // Mélanger le mot quand on change d'index
+    useEffect(() => {
+      if (session && session.words[currentWordIndex]) {
+        const word = session.words[currentWordIndex];
+        setScrambledWord(word.split('').sort(() => Math.random() - 0.5).join(''));
+      }
+    }, [session, currentWordIndex]);
+
+    // Fonction pour démarrer l'exercice
+    const handleStartExercise = async () => {
+      if (!session) return;
+      try {
+        // On passe la session en 'active' dans Firestore
+        await updateSessionStatus(session.id, 'active');
+        // Le useEffect ci-dessus détectera le changement et passera setStatus('active') automatiquement
+      } catch (error) {
+        console.error("Erreur lancement:", error);
+      }
+    };
+
+
+    // Validation (Identique à AnagramExercise)
+    const checkAnswer = async () => {
+      const currentWord = session.words[currentWordIndex];
+      const correct = userAnswer.toLowerCase().trim() === currentWord.toLowerCase();
+      
+      setIsCorrect(correct);
+      setShowResult(true);
+      
+      // On sauvegarde le résultat local pour les points en bas
+      const newResult = { word: currentWord, userAnswer, correct };
+      setLocalResults([...localResults, newResult]);
+
+      // Envoi à Firestore
+      await sendAnswer(session.id, { 
+        word: currentWord, 
+        userAnswer: userAnswer, 
+        correct: correct, 
+        timestamp: new Date().toISOString() 
+      });
+    };
+
+    // Passage au suivant (Identique à AnagramExercise)
+    const nextExercise = () => {
+      if (currentWordIndex < session.words.length - 1) {
+        setCurrentWordIndex(prev => prev + 1);
+        setUserAnswer('');
+        setShowResult(false);
+      } else {
+        setStatus('waiting_finish');
+      }
+    };
+
+    // Supprimer toutes les sessions en court
+    const handleDebugClear = async () => {
+      if (window.confirm("DEBUG: Voulez-vous vraiment supprimer TOUTES les sessions en cours ? Cela réinitialisera l'état.")) {
+        await clearUserSessions(currentUser.uid);
+        setSession(null);
+        setStatus('searching');
+        alert("Sessions nettoyées !");
+      }
+    };
+
+    // Retour à la page patient
+    const handleReturnToStart = () => {
+      setSession(null);
+      setStatus('searching');
+      setCurrentPage('patient'); 
+    };
+
+    // --- VUES ---
+
+    
+    // 1. Recherche en cours
+    if (status === 'searching') {
+      return (
+        <div className="min-h-screen bg-blue-50 flex flex-col items-center justify-center p-6 text-center">
+          <div className="animate-bounce mb-6"><Brain className="w-20 h-20 text-blue-600" /></div>
+          <h2 className="text-2xl font-bold mb-4">En attente du praticien...</h2>
+          <p className="text-gray-600">Connecté en tant que patient</p>
           <button 
-            onClick={() => setCurrentPage('home')}
-            className="text-gray-600 hover:text-gray-800"
+            onClick={handleDebugClear}
+            className="px-4 py-2 bg-red-100 text-red-600 rounded-lg text-sm border border-red-200 hover:bg-red-200 transition"
           >
-            ← Retour
+            🗑️ DEBUG : Réinitialiser les sessions
           </button>
         </div>
-      </nav>
+      );
+    }
 
-      <div className="container mx-auto px-6 py-12">
-        <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-          <Users className="w-24 h-24 text-purple-600 mx-auto mb-6" />
-          <h1 className="text-3xl font-bold mb-4">Page Patient</h1>
-          <p className="text-gray-600 text-lg">
-            Cette page sera développée pour afficher les exercices et permettre aux patients d'y répondre
-          </p>
+    // 2. Session trouvé / Lancé l'exercice
+    if (status === 'waiting' && session) {
+      return (
+        <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6">
+          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-10 text-center border-2 border-blue-50">
+            <div className="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Play className="w-10 h-10 text-blue-600 ml-1" />
+            </div>
+            
+            <h2 className="text-3xl font-bold text-gray-800 mb-2">Séance Prête !</h2>
+            <p className="text-gray-500 mb-8">Le praticien a préparé un exercice pour toi.</p>
+            
+            <div className="bg-gray-50 rounded-xl p-6 mb-8 text-left">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-gray-600 font-medium">Type d'exercice :</span>
+                <span className="font-bold text-blue-600 capitalize">{session.type}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600 font-medium">Nombre de questions :</span>
+                <span className="font-bold text-blue-600">{session.words.length}</span>
+              </div>
+            </div>
+
+            <button 
+              onClick={handleStartExercise}
+              className="w-full py-4 bg-blue-600 text-white rounded-xl text-xl font-bold hover:bg-blue-700 transition transform hover:scale-105 shadow-lg"
+            >
+              Commencer l'exercice
+            </button>
+          </div>
         </div>
-      </div>
-    </div>
-  );
+      );
+    }
+    
+    // 3.  Exercice (Anagram)
+    if (status === 'active' && session) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+          <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-2xl">
+            {/* Header */}
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-2xl font-bold">Exercice Anagramme</h2>
+              <span className="text-gray-600 font-medium">Question {currentWordIndex + 1}/{session.words.length}</span>
+            </div>
+
+            {/* Zone du mot brouillé */}
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-8 mb-6 text-center">
+              <p className="text-gray-600 mb-4">Retrouvez le mot correct :</p>
+              <p className="text-4xl font-bold text-blue-600 tracking-widest uppercase">{scrambledWord}</p>
+            </div>
+
+            {/* Zone de réponse ou Résultat */}
+            {!showResult ? (
+              <div className="space-y-4">
+                <input 
+                  type="text" 
+                  value={userAnswer} 
+                  onChange={(e) => setUserAnswer(e.target.value)} 
+                  onKeyPress={(e) => e.key === 'Enter' && userAnswer && checkAnswer()}
+                  placeholder="Tapez votre réponse..." 
+                  className="w-full px-6 py-4 text-xl border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                  autoFocus 
+                />
+                <button 
+                  onClick={checkAnswer} 
+                  disabled={!userAnswer.trim()} 
+                  className="w-full py-4 bg-blue-600 text-white text-lg rounded-lg hover:bg-blue-700 transition font-medium disabled:bg-gray-300"
+                >
+                  Valider
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div className={`p-6 rounded-xl mb-4 ${isCorrect ? 'bg-green-50 border-2 border-green-500' : 'bg-red-50 border-2 border-red-500'}`}>
+                  <p className={`text-xl font-bold mb-2 ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                    {isCorrect ? '✓ Correct !' : '✗ Incorrect'}
+                  </p>
+                  {!isCorrect && (
+                    <p className="text-gray-700">
+                      La bonne réponse était : <span className="font-bold">{session.words[currentWordIndex]}</span>
+                    </p>
+                  )}
+                </div>
+                <button 
+                  onClick={nextExercise} 
+                  className="w-full py-4 bg-blue-600 text-white text-lg rounded-lg hover:bg-blue-700 transition font-medium"
+                >
+                  {currentWordIndex < session.words.length - 1 ? 'Exercice suivant →' : 'Terminer'}
+                </button>
+              </div>
+            )}
+
+            {/* Points de progression (Dots) */}
+            <div className="mt-6 flex gap-2 justify-center">
+              {session.words.map((_, idx) => (
+                <div
+                  key={idx}
+                  className={`w-3 h-3 rounded-full ${
+                    idx < currentWordIndex 
+                      ? (localResults[idx]?.correct ? 'bg-green-500' : 'bg-red-500')
+                      : idx === currentWordIndex 
+                      ? 'bg-blue-600' 
+                      : 'bg-gray-300'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (status === 'waiting_finish' || status === 'result') {
+      // Calcul du score basé sur les résultats locaux ou ceux de la session
+      const score = localResults.filter(r => r.correct).length;
+      
+      return (
+        <div className="min-h-screen bg-green-50 flex flex-col items-center justify-center p-6 text-center">
+          <div className="bg-white p-10 rounded-2xl shadow-xl">
+            <h2 className="text-3xl font-bold text-green-600 mb-4">Exercice Terminé !</h2>
+            <p className="text-xl mt-4 mb-8">Votre score : <span className="font-bold">{score} / {session?.words.length}</span></p>
+            <div className="flex flex-col gap-3">
+               <p className="text-gray-500 text-sm">Le praticien va clore la session...</p>
+               <button onClick={handleReturnToStart} className="text-blue-600 underline hover:text-blue-800">
+                Retourner à l'accueil</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
 
   // Loading state
   if (loading) {
