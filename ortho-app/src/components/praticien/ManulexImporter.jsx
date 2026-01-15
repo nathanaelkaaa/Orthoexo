@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, CheckCircle, AlertCircle } from 'lucide-react';
-import { parseManulexFile, transformManulexData, importWordsToFirestore } from '../services/manulexService';
+import { parseManulexFile, transformManulexData, importWordsToFirestore } from '../../services/manulexService';
 
 const ManulexImporter = ({ onComplete }) => {
   const [importing, setImporting] = useState(false);

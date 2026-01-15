@@ -65,7 +65,7 @@ export const listenForActiveSession = (uid, callback) => {
     // 2. IMPORTANT : On ne garde que celles qui sont Active ou Finie
     // (On ignore les vieilles sessions 'waiting' ou buggées qui bloqueraient la vue)
   
-    const validSessions = allSessions.filter(s => s.status === 'active' || s.status === 'finished' || s.status === 'waiting');
+    const validSessions = allSessions.filter(s => s.status === 'active' || s.status === 'waiting');
 
     // 3. On trie par date (la plus récente en premier)
     validSessions.sort((a, b) => {

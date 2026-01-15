@@ -85,7 +85,7 @@ export const transformManulexData = (rawData) => {
 };
 
 // Importer les mots SANS doublons
-export const importWordsToFirestoreWithoutDuplicates = async (words, progressCallback) => {
+export const importWordsToFirestore = async (words, progressCallback) => {
   try {
     const existingWordsSnapshot = await getDocs(collection(db, 'words'));
     const existingWords = new Set(
