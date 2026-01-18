@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, BarChart3, MessageSquare, User, BookOpen, Play } from 'lucide-react';
-import { createSession, deleteSession, observeSessionById } from '../../services/firestoreService';
-import { getWordsByLevel, getIrregularWords } from '../../services/manulexService';
+import { ArrowRight, BarChart3, MessageSquare, User, BookOpen, Play, ChevronLeft, ChevronRight } from 'lucide-react';
+import { createSession } from '../../services/firestoreService';
+import { getWordsByLevelPaginated, getIrregularWordsPaginated } from '../../services/manulexService';
 import AnagramExercise from '../exercises/AnagramExercise';
 import PractitionerMonitor from './PractitionerMonitor';
 
@@ -37,15 +37,20 @@ const WordSelectionView = ({ currentUser, category, onBack }) => {
     setWordView('exerciseType');
   };
 
-  const handleLaunchForPatient = async () => {
+  const handleLaunchForPatient = async (count = 10) => {
     if (selectedWords.length < 1) return alert("Sélectionnez des mots.");
     
     try {
-      const sessionId = await createSession(currentUser.uid, 'anagram', selectedWords);
+      const sessionWords = [...selectedWords]
+        .sort(() => Math.random() - 0.5)
+        .slice(0, count);
+
+      const sessionId = await createSession(currentUser.uid, 'anagram', sessionWords);
       setActiveSession({ 
         id: sessionId, 
         type: 'anagram', 
-        words: selectedWords, 
+        words: sessionWords, 
+        length: sessionWords.length,
         patientAnswers: [] 
       });
       setWordView('monitor');
@@ -229,73 +234,64 @@ const WordSourceSelection = ({ onSelectSource, selectedWords, onCreateExercise, 
   </div>
 );
 
-// Frequency Word List
+// Frequency Word List avec PAGINATION
 const FrequencyWordList = ({ onBack, selectedWords, setSelectedWords }) => {
   const [selectedLevel, setSelectedLevel] = useState('CP');
   const [searchTerm, setSearchTerm] = useState('');
   const [words, setWords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('frequency');
-  const [sortedWords, setSortedWords] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalWords, setTotalWords] = useState(0);
   
   const levels = ['CP', 'CE1', 'CE2-CM2'];
 
+  // Charger les mots quand le niveau, le tri, la page ou la recherche change
   useEffect(() => {
     loadWords();
-  }, [selectedLevel]);
-
-  useEffect(() => {
-    applySorting();
-  }, [words, sortBy]);
+  }, [selectedLevel, sortBy, currentPage, searchTerm]);
 
   const loadWords = async () => {
     setLoading(true);
     try {
-      const fetchedWords = await getWordsByLevel(selectedLevel);
-      setWords(fetchedWords);
+      const result = await getWordsByLevelPaginated(
+        selectedLevel, 
+        sortBy, 
+        currentPage,
+        searchTerm
+      );
+      setWords(result.words);
+      setHasMore(result.hasMore);
+      setTotalWords(result.total || 0);
     } catch (error) {
       console.error('Erreur chargement mots:', error);
     }
     setLoading(false);
   };
 
-  const applySorting = () => {
-    const uniqueWords = words.reduce((acc, current) => {
-      const exists = acc.find(item => item.word.toLowerCase() === current.word.toLowerCase());
-      if (!exists) {
-        acc.push(current);
-      }
-      return acc;
-    }, []);
-    
-    let sorted = [...uniqueWords];
-    
-    switch(sortBy) {
-      case 'alphabetical':
-        sorted.sort((a, b) => a.word.localeCompare(b.word));
-        break;
-      case 'frequency':
-        sorted.sort((a, b) => (b.frequency || 0) - (a.frequency || 0));
-        break;
-      case 'random':
-        sorted.sort(() => Math.random() - 0.5);
-        break;
-      default:
-        break;
-    }
-    
-    setSortedWords(sorted);
-  };
-
-  const filteredWords = sortedWords.filter(wordData => 
-    wordData.word.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Réinitialiser la page quand on change de niveau, tri ou recherche
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedLevel, sortBy, searchTerm]);
 
   const toggleWord = (word) => {
     if (selectedWords.includes(word)) {
       setSelectedWords(selectedWords.filter(w => w !== word));
     } else {
       setSelectedWords([...selectedWords, word]);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (hasMore) {
+      setCurrentPage(currentPage + 1);
     }
   };
 
@@ -352,7 +348,8 @@ const FrequencyWordList = ({ onBack, selectedWords, setSelectedWords }) => {
 
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
           <p className="text-blue-800 font-medium">
-            {selectedWords.length} mot(s) sélectionné(s) au total • {filteredWords.length} mot(s) affiché(s)
+            {selectedWords.length} mot(s) sélectionné(s) au total • Page {currentPage}
+            {searchTerm && totalWords > 0 && ` • ${totalWords} résultat(s)`}
           </p>
         </div>
 
@@ -362,72 +359,110 @@ const FrequencyWordList = ({ onBack, selectedWords, setSelectedWords }) => {
             <p className="text-gray-600">Chargement des mots...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-96 overflow-y-auto">
-            {filteredWords.length > 0 ? (
-              filteredWords.map((wordData, index) => (
-                <button
-                  key={index}
-                  onClick={() => toggleWord(wordData.word)}
-                  className={`p-3 rounded-lg border-2 transition ${
-                    selectedWords.includes(wordData.word)
-                      ? 'border-blue-600 bg-blue-50 text-blue-700 font-medium'
-                      : 'border-gray-200 hover:border-blue-300 bg-white'
-                  }`}
-                >
-                  {wordData.word}
-                </button>
-              ))
-            ) : (
-              <div className="col-span-full text-center py-8 text-gray-400">
-                {words.length === 0 
-                  ? 'Aucun mot dans la base de données. Importez d\'abord les données Manulex.' 
-                  : `Aucun mot trouvé pour "${searchTerm}"`}
-              </div>
-            )}
-          </div>
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 min-h-[400px]">
+              {words.length > 0 ? (
+                words.map((wordData, index) => (
+                  <button
+                    key={index}
+                    onClick={() => toggleWord(wordData.word)}
+                    className={`p-3 rounded-lg border-2 transition ${
+                      selectedWords.includes(wordData.word)
+                        ? 'border-blue-600 bg-blue-50 text-blue-700 font-medium'
+                        : 'border-gray-200 hover:border-blue-300 bg-white'
+                    }`}
+                  >
+                    {wordData.word}
+                  </button>
+                ))
+              ) : (
+                <div className="col-span-full text-center py-12 text-gray-400">
+                  {searchTerm 
+                    ? `Aucun mot trouvé pour "${searchTerm}"` 
+                    : 'Aucun mot dans la base de données.'}
+                </div>
+              )}
+            </div>
+
+            {/* Contrôles de pagination */}
+            <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
+              <button
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Précédent
+              </button>
+              
+              <span className="text-gray-600 font-medium">
+                Page {currentPage}
+              </span>
+              
+              <button
+                onClick={handleNextPage}
+                disabled={!hasMore}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Suivant
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </>
         )}
       </div>
     </div>
   );
 };
 
-// Irregular Word List
+// Irregular Word List avec PAGINATION
 const IrregularWordList = ({ onBack, selectedWords, setSelectedWords }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [words, setWords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalWords, setTotalWords] = useState(0);
 
   useEffect(() => {
     loadWords();
-  }, []);
+  }, [currentPage, searchTerm]);
 
   const loadWords = async () => {
     setLoading(true);
     try {
-      const fetchedWords = await getIrregularWords();
-      const uniqueWords = fetchedWords.reduce((acc, current) => {
-        const exists = acc.find(item => item.word.toLowerCase() === current.word.toLowerCase());
-        if (!exists) {
-          acc.push(current);
-        }
-        return acc;
-      }, []);
-      setWords(uniqueWords);
+      const result = await getIrregularWordsPaginated(currentPage, searchTerm);
+      setWords(result.words);
+      setHasMore(result.hasMore);
+      setTotalWords(result.total || 0);
     } catch (error) {
       console.error('Erreur chargement mots irréguliers:', error);
     }
     setLoading(false);
   };
 
-  const filteredWords = words.filter(wordData => 
-    wordData.word.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Réinitialiser la page lors de la recherche
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const toggleWord = (word) => {
     if (selectedWords.includes(word)) {
       setSelectedWords(selectedWords.filter(w => w !== word));
     } else {
       setSelectedWords([...selectedWords, word]);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (hasMore) {
+      setCurrentPage(currentPage + 1);
     }
   };
 
@@ -457,7 +492,8 @@ const IrregularWordList = ({ onBack, selectedWords, setSelectedWords }) => {
 
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
           <p className="text-orange-800 font-medium">
-            {selectedWords.length} mot(s) sélectionné(s) au total • {filteredWords.length} mot(s) affiché(s)
+            {selectedWords.length} mot(s) sélectionné(s) au total • Page {currentPage}
+            {searchTerm && totalWords > 0 && ` • ${totalWords} résultat(s)`}
           </p>
         </div>
 
@@ -467,36 +503,63 @@ const IrregularWordList = ({ onBack, selectedWords, setSelectedWords }) => {
             <p className="text-gray-600">Chargement des mots...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {filteredWords.length > 0 ? (
-              filteredWords.map((wordData, index) => (
-                <button
-                  key={index}
-                  onClick={() => toggleWord(wordData.word)}
-                  className={`p-3 rounded-lg border-2 transition ${
-                    selectedWords.includes(wordData.word)
-                      ? 'border-orange-600 bg-orange-50 text-orange-700 font-medium'
-                      : 'border-gray-200 hover:border-orange-300 bg-white'
-                  }`}
-                >
-                  {wordData.word}
-                </button>
-              ))
-            ) : (
-              <div className="col-span-full text-center py-8 text-gray-400">
-                {words.length === 0 
-                  ? 'Aucun mot irrégulier dans la base de données.' 
-                  : `Aucun mot trouvé pour "${searchTerm}"`}
-              </div>
-            )}
-          </div>
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 min-h-[400px]">
+              {words.length > 0 ? (
+                words.map((wordData, index) => (
+                  <button
+                    key={index}
+                    onClick={() => toggleWord(wordData.word)}
+                    className={`p-3 rounded-lg border-2 transition ${
+                      selectedWords.includes(wordData.word)
+                        ? 'border-orange-600 bg-orange-50 text-orange-700 font-medium'
+                        : 'border-gray-200 hover:border-orange-300 bg-white'
+                    }`}
+                  >
+                    {wordData.word}
+                  </button>
+                ))
+              ) : (
+                <div className="col-span-full text-center py-12 text-gray-400">
+                  {searchTerm 
+                    ? `Aucun mot trouvé pour "${searchTerm}"` 
+                    : 'Aucun mot irrégulier dans la base de données.'}
+                </div>
+              )}
+            </div>
+
+            {/* Contrôles de pagination */}
+            <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
+              <button
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Précédent
+              </button>
+              
+              <span className="text-gray-600 font-medium">
+                Page {currentPage}
+              </span>
+              
+              <button
+                onClick={handleNextPage}
+                disabled={!hasMore}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Suivant
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </>
         )}
       </div>
     </div>
   );
 };
 
-// Custom Word List
+// Custom Word List (pas de pagination nécessaire)
 const CustomWordList = ({ onBack, selectedWords, setSelectedWords }) => {
   const [newWord, setNewWord] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -601,44 +664,70 @@ const CustomWordList = ({ onBack, selectedWords, setSelectedWords }) => {
 };
 
 // Exercise Type Selection
-const ExerciseTypeSelection = ({ onBack, selectedWords, onSelectType, onLaunchForPatient }) => (
-  <div>
-    <button 
-      onClick={onBack}
-      className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-800"
-    >
-      <ArrowRight className="w-4 h-4 rotate-180" />
-      Retour à la sélection
-    </button>
+const ExerciseTypeSelection = ({ onBack, selectedWords, onSelectType, onLaunchForPatient }) => {
+  const maxPossible = selectedWords.length;
+  const [exerciseCount, setExerciseCount] = useState(Math.min(10, maxPossible));
 
-    <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
-      <h2 className="text-2xl font-bold mb-4">Choisissez le type d'exercice</h2>
-      <p className="text-gray-600 mb-2">Nombre de mots sélectionnés : {selectedWords.length}</p>
-      <p className="text-gray-500 text-sm">10 exercices seront générés aléatoirement parmi vos mots</p>
-    </div>
+  return (
+    <div>
+      <button 
+        onClick={onBack}
+        className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-800"
+      >
+        <ArrowRight className="w-4 h-4 rotate-180" />
+        Retour à la sélection
+      </button>
 
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div className="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition cursor-pointer group relative">
-        <div onClick={() => onSelectType('anagram')}>
-          <MessageSquare className="w-16 h-16 text-blue-600 mb-4 group-hover:scale-110 transition" />
-          <h3 className="text-xl font-bold mb-2">Anagramme</h3>
-          <p className="text-gray-600 text-sm mb-4">Retrouvez le mot correct à partir des lettres mélangées</p>
+      <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
+        <h2 className="text-2xl font-bold mb-4">Choisissez le type d'exercice</h2>
+        
+        <div className="flex justify-between items-center bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <div>
+            <p className="text-gray-600 font-medium">Mots disponibles : {selectedWords.length}</p>
+            <p className="text-gray-500 text-sm">Combien de questions pour le patient ?</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input 
+              type="number" 
+              min="1" 
+              max={maxPossible}
+              value={exerciseCount}
+              onChange={(e) => {
+                let val = parseInt(e.target.value);
+                if (val > maxPossible) val = maxPossible;
+                if (val < 1) val = 1;
+                setExerciseCount(val);
+              }}
+              className="w-16 px-2 py-2 border border-gray-300 rounded-lg text-center font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+            <span className="text-gray-400 text-sm">/ {maxPossible}</span>
+          </div>
         </div>
+      </div>
 
-        {/* Clic pour lancer au patient */}
-            <button 
-             onClick={(e) => {
-                e.stopPropagation();
-                if (onLaunchForPatient) {
-                onLaunchForPatient();
-                }
-             }}
-            className="w-full py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2 mt-2 font-bold"
-            >
-                <Play className="w-4 h-4" /> Lancer pour le patient
-            </button>
-       </div>
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition cursor-pointer group relative">
+          <div onClick={() => onSelectType('anagram')}>
+            <MessageSquare className="w-16 h-16 text-blue-600 mb-4 group-hover:scale-110 transition" />
+            <h3 className="text-xl font-bold mb-2">Anagramme</h3>
+            <p className="text-gray-600 text-sm mb-4">Retrouvez le mot correct à partir des lettres mélangées</p>
+          </div>
+
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onLaunchForPatient) {
+                onLaunchForPatient(exerciseCount);
+              }
+            }}
+            className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2 mt-2 font-bold shadow-md transition hover:scale-[1.02]"
+          >
+            <Play className="w-4 h-4" /> Lancer ({exerciseCount} questions)
+          </button>
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
+
 export default WordSelectionView;

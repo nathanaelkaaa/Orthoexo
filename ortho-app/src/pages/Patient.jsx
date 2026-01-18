@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Brain } from 'lucide-react';
 import { listenForActiveSession, clearUserSessions, updateSessionStatus, deleteSession } from '../services/firestoreService';
 import PatientWaiting from '../components/patient/PatientWaiting';
 import PatientReady from '../components/patient/PatientReady';
@@ -48,48 +49,62 @@ const Patient = ({ currentUser, onBack }) => {
     setStatus('searching');
   };
 
-  // Vue : Recherche en cours
-  if (status === 'searching') {
-    return (
-      <PatientWaiting 
-        currentUser={currentUser}
-        onDebugClear={handleDebugClear}
-      />
-    );
-  }
 
-  // Vue : Session trouvée - Prêt à démarrer
-  if (status === 'waiting' && session) {
-    return (
-      <PatientReady 
-        session={session}
-        onStatusChange={setStatus}
-      />
-    );
-  }
+return (
+<div className="min-h-screen bg-gray-50">
+      <nav className="bg-white shadow-sm">
+        <div className="container mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Brain className="w-8 h-8 text-purple-600" />
+            <span className="text-xl font-bold">Espace Patient</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-gray-600">{currentUser?.email}</span>
+            <button 
+              onClick={onBack}
+              className="text-gray-600 hover:text-gray-800"
+            >
+              ← Retour
+            </button>
+          </div>
+        </div>
+      </nav>
 
-  // Vue : Exercice actif
-  if (status === 'active' && session) {
-    return (
-      <AnagramExercise 
-        session={session}
-        isPatientMode={true}
-        onFinish={() => setStatus('waiting_finish')}
-      />
-    );
-  }
+        
+        {status === 'searching' && (
+          // Vue : Recherche en cours
+          <PatientWaiting 
+            currentUser={currentUser}
+            onDebugClear={handleDebugClear}
+          />
+        )}
 
-  // Vue : Résultat
-  if (status === 'waiting_finish' || status === 'result') {
-    return (
-      <PatientResult 
-        session={session}
-        onReturnToStart={handleReturnToStart}
-      />
-    );
-  }
+        {(status === 'waiting' && session) && (
+          // Vue : Session trouvée - Prêt à démarrer
+          <PatientReady 
+            session={session}
+            onStatusChange={setStatus}
+          />
+        )}
 
-  return null;
+        {(status === 'active' && session) && (
+          // Vue : Exercice actif
+          <AnagramExercise 
+            session={session}
+            isPatientMode={true}
+            onFinish={() => setStatus('waiting_finish')}
+          />
+        )}
+
+        {(status === 'waiting_finish' || status === 'result') && (
+          // Vue : Résultat
+          <PatientResult 
+            session={session}
+            onReturnToStart={handleReturnToStart}
+          />
+        )}
+    </div>
+  );
 };
 
 export default Patient;

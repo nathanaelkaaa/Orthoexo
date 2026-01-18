@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { collection, getDocs, query, where, orderBy, writeBatch, doc } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, writeBatch, doc, limit, startAfter } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
 // Liste étendue de mots irréguliers en français
@@ -23,6 +23,8 @@ const IRREGULAR_WORDS = [
   'agenda', 'crawl', 'tee-shirt', 'chlorophylle', 'bourg', 'gnome', 'aquarelle', 'chronologie', 'cacahuète', 'promp', 
   'yacht'
 ];
+
+const WORDS_PER_PAGE = 50; // Nombre de mots par page
 
 // Parser le fichier Excel Manulex
 export const parseManulexFile = async (file) => {
@@ -54,8 +56,7 @@ export const transformManulexData = (rawData) => {
     const ce2cm2Freq = parseFloat(row['CE2-CM2 F'] || 0);
     const globalFreq = parseFloat(row['CP-CM2 F'] || 0);
     
-    // Logique simple : utiliser les 3 niveaux du fichier Excel
-    let level = 'CE2-CM2'; // Par défaut
+    let level = 'CE2-CM2';
     
     if (cpFreq > 0) {
       level = 'CP';
@@ -173,7 +174,192 @@ export const clearAllWords = async (progressCallback) => {
   }
 };
 
-// Récupérer tous les mots d'un niveau spécifique
+// Récupérer les mots par niveau avec pagination
+export const getWordsByLevelPaginated = async (level, sortBy = 'frequency', pageNumber = 1, searchTerm = '') => {
+  try {
+    const wordsCollection = collection(db, 'words');
+    const constraints = [where('level', '==', level)];
+    
+    // Déterminer l'ordre de tri
+    let orderByField = 'frequency';
+    let orderByDirection = 'desc';
+    
+    if (sortBy === 'alphabetical') {
+      orderByField = 'word';
+      orderByDirection = 'asc';
+    } else if (sortBy === 'frequency') {
+      orderByField = 'frequency';
+      orderByDirection = 'desc';
+    }
+    
+    // Si pas de recherche, utiliser la pagination Firestore native
+    if (!searchTerm) {
+      constraints.push(orderBy(orderByField, orderByDirection));
+      constraints.push(limit(WORDS_PER_PAGE));
+      
+      // Si ce n'est pas la première page, on utilise startAfter
+      if (pageNumber > 1) {
+        // Pour paginer correctement, il faut récupérer le dernier document de la page précédente
+        // Pour simplifier, on va récupérer tous les documents jusqu'à la page actuelle
+        const skipCount = (pageNumber - 1) * WORDS_PER_PAGE;
+        const previousQuery = query(wordsCollection, ...constraints.slice(0, -1), limit(skipCount));
+        const previousSnapshot = await getDocs(previousQuery);
+        
+        if (previousSnapshot.docs.length > 0) {
+          const lastDoc = previousSnapshot.docs[previousSnapshot.docs.length - 1];
+          const paginatedQuery = query(
+            wordsCollection,
+            ...constraints.slice(0, -1),
+            startAfter(lastDoc),
+            limit(WORDS_PER_PAGE)
+          );
+          const querySnapshot = await getDocs(paginatedQuery);
+          
+          return {
+            words: querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            hasMore: querySnapshot.docs.length === WORDS_PER_PAGE
+          };
+        }
+      }
+      
+      const q = query(wordsCollection, ...constraints);
+      const querySnapshot = await getDocs(q);
+      
+      return {
+        words: querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+        hasMore: querySnapshot.docs.length === WORDS_PER_PAGE
+      };
+    } else {
+      // Si recherche, récupérer tous les mots du niveau et filtrer côté client
+      const q = query(wordsCollection, where('level', '==', level));
+      const querySnapshot = await getDocs(q);
+      
+      let allWords = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Filtrer par terme de recherche
+      allWords = allWords.filter(wordData => 
+        wordData.word.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      
+      // Trier
+      if (sortBy === 'alphabetical') {
+        allWords.sort((a, b) => a.word.localeCompare(b.word));
+      } else if (sortBy === 'frequency') {
+        allWords.sort((a, b) => (b.frequency || 0) - (a.frequency || 0));
+      } else if (sortBy === 'random') {
+        allWords.sort(() => Math.random() - 0.5);
+      }
+      
+      // Supprimer les doublons
+      const uniqueWords = allWords.reduce((acc, current) => {
+        const exists = acc.find(item => item.word.toLowerCase() === current.word.toLowerCase());
+        if (!exists) {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+      
+      // Paginer côté client
+      const startIndex = (pageNumber - 1) * WORDS_PER_PAGE;
+      const endIndex = startIndex + WORDS_PER_PAGE;
+      const paginatedWords = uniqueWords.slice(startIndex, endIndex);
+      
+      return {
+        words: paginatedWords,
+        hasMore: endIndex < uniqueWords.length,
+        total: uniqueWords.length
+      };
+    }
+  } catch (error) {
+    console.error('Erreur récupération mots paginés:', error);
+    return { words: [], hasMore: false, total: 0 };
+  }
+};
+
+// Récupérer les mots irréguliers avec pagination
+export const getIrregularWordsPaginated = async (pageNumber = 1, searchTerm = '') => {
+  try {
+    const wordsCollection = collection(db, 'words');
+    
+    if (!searchTerm) {
+      // Sans recherche, pagination native
+      const constraints = [
+        where('isIrregular', '==', true),
+        orderBy('word', 'asc'),
+        limit(WORDS_PER_PAGE)
+      ];
+      
+      if (pageNumber > 1) {
+        const skipCount = (pageNumber - 1) * WORDS_PER_PAGE;
+        const previousQuery = query(wordsCollection, ...constraints.slice(0, -1), limit(skipCount));
+        const previousSnapshot = await getDocs(previousQuery);
+        
+        if (previousSnapshot.docs.length > 0) {
+          const lastDoc = previousSnapshot.docs[previousSnapshot.docs.length - 1];
+          const paginatedQuery = query(
+            wordsCollection,
+            ...constraints.slice(0, -1),
+            startAfter(lastDoc),
+            limit(WORDS_PER_PAGE)
+          );
+          const querySnapshot = await getDocs(paginatedQuery);
+          
+          return {
+            words: querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+            hasMore: querySnapshot.docs.length === WORDS_PER_PAGE
+          };
+        }
+      }
+      
+      const q = query(wordsCollection, ...constraints);
+      const querySnapshot = await getDocs(q);
+      
+      return {
+        words: querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+        hasMore: querySnapshot.docs.length === WORDS_PER_PAGE
+      };
+    } else {
+      // Avec recherche, filtrer côté client
+      const q = query(wordsCollection, where('isIrregular', '==', true));
+      const querySnapshot = await getDocs(q);
+      
+      let allWords = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Filtrer par recherche
+      allWords = allWords.filter(wordData => 
+        wordData.word.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      
+      // Supprimer doublons
+      const uniqueWords = allWords.reduce((acc, current) => {
+        const exists = acc.find(item => item.word.toLowerCase() === current.word.toLowerCase());
+        if (!exists) {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+      
+      // Trier alphabétiquement
+      uniqueWords.sort((a, b) => a.word.localeCompare(b.word));
+      
+      // Paginer
+      const startIndex = (pageNumber - 1) * WORDS_PER_PAGE;
+      const endIndex = startIndex + WORDS_PER_PAGE;
+      const paginatedWords = uniqueWords.slice(startIndex, endIndex);
+      
+      return {
+        words: paginatedWords,
+        hasMore: endIndex < uniqueWords.length,
+        total: uniqueWords.length
+      };
+    }
+  } catch (error) {
+    console.error('Erreur récupération mots irréguliers paginés:', error);
+    return { words: [], hasMore: false, total: 0 };
+  }
+};
+
+// Anciennes fonctions conservées pour compatibilité (peuvent être supprimées si non utilisées ailleurs)
 export const getWordsByLevel = async (level) => {
   try {
     const wordsCollection = collection(db, 'words');
@@ -206,7 +392,6 @@ export const getWordsByLevel = async (level) => {
   }
 };
 
-// Récupérer tous les mots irréguliers
 export const getIrregularWords = async () => {
   try {
     const wordsCollection = collection(db, 'words');
@@ -226,7 +411,6 @@ export const getIrregularWords = async () => {
   }
 };
 
-// Récupérer TOUS les mots
 export const getAllWords = async () => {
   try {
     const wordsCollection = collection(db, 'words');
@@ -242,7 +426,6 @@ export const getAllWords = async () => {
   }
 };
 
-// Rechercher des mots
 export const searchWordsInFirestore = async (searchTerm, filters = {}) => {
   try {
     let q = collection(db, 'words');
