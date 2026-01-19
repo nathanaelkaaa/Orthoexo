@@ -174,190 +174,143 @@ export const clearAllWords = async (progressCallback) => {
   }
 };
 
-// Récupérer les mots par niveau avec pagination
-export const getWordsByLevelPaginated = async (level, sortBy = 'frequency', pageNumber = 1, searchTerm = '') => {
+/**
+ * OPTIMISATION : Utilisation du curseur (lastVisibleDoc) au lieu du numéro de page.
+ * Cela évite de relire tous les documents précédents.
+ * 
+ * @param {string} level - Le niveau (CP, CE1, etc.)
+ * @param {string} sortBy - 'frequency' ou 'alphabetical'
+ * @param {Object|null} lastVisibleDoc - Le dernier objet document récupéré (null pour la 1ère page)
+ * @param {string} searchTerm - Le terme de recherche
+ */
+export const getWordsByLevelPaginated = async (level, sortBy = 'frequency', lastVisibleDoc = null, searchTerm = '') => {
   try {
     const wordsCollection = collection(db, 'words');
-    const constraints = [where('level', '==', level)];
-    
-    // Déterminer l'ordre de tri
-    let orderByField = 'frequency';
-    let orderByDirection = 'desc';
-    
-    if (sortBy === 'alphabetical') {
-      orderByField = 'word';
-      orderByDirection = 'asc';
-    } else if (sortBy === 'frequency') {
-      orderByField = 'frequency';
-      orderByDirection = 'desc';
-    }
-    
-    // Si pas de recherche, utiliser la pagination Firestore native
-    if (!searchTerm) {
-      constraints.push(orderBy(orderByField, orderByDirection));
-      constraints.push(limit(WORDS_PER_PAGE));
-      
-      // Si ce n'est pas la première page, on utilise startAfter
-      if (pageNumber > 1) {
-        // Pour paginer correctement, il faut récupérer le dernier document de la page précédente
-        // Pour simplifier, on va récupérer tous les documents jusqu'à la page actuelle
-        const skipCount = (pageNumber - 1) * WORDS_PER_PAGE;
-        const previousQuery = query(wordsCollection, ...constraints.slice(0, -1), limit(skipCount));
-        const previousSnapshot = await getDocs(previousQuery);
-        
-        if (previousSnapshot.docs.length > 0) {
-          const lastDoc = previousSnapshot.docs[previousSnapshot.docs.length - 1];
-          const paginatedQuery = query(
-            wordsCollection,
-            ...constraints.slice(0, -1),
-            startAfter(lastDoc),
-            limit(WORDS_PER_PAGE)
-          );
-          const querySnapshot = await getDocs(paginatedQuery);
-          
-          return {
-            words: querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-            hasMore: querySnapshot.docs.length === WORDS_PER_PAGE
-          };
-        }
+    let q;
+
+    // Recherche active
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      const searchEnd = searchLower + '\uf8ff'; // Caractère spécial Unicode pour dire "jusqu'à la fin"
+
+      // Note: Pour chercher, on force le tri alphabétique car Firestore l'exige pour les requêtes de plage (range queries)
+      const constraints = [
+        where('level', '==', level),
+        orderBy('word'), 
+        where('word', '>=', searchLower),
+        where('word', '<=', searchEnd),
+        limit(WORDS_PER_PAGE)
+      ];
+
+      console.log('lastVisibleDoc :',lastVisibleDoc);
+      if (lastVisibleDoc) {
+        constraints.push(startAfter(lastVisibleDoc));
       }
-      
-      const q = query(wordsCollection, ...constraints);
-      const querySnapshot = await getDocs(q);
-      
-      return {
-        words: querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-        hasMore: querySnapshot.docs.length === WORDS_PER_PAGE
-      };
+
+      q = query(wordsCollection, ...constraints);
+    
     } else {
-      // Si recherche, récupérer tous les mots du niveau et filtrer côté client
-      const q = query(wordsCollection, where('level', '==', level));
-      const querySnapshot = await getDocs(q);
-      
-      let allWords = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      // Filtrer par terme de recherche
-      allWords = allWords.filter(wordData => 
-        wordData.word.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      
-      // Trier
+      // Navigation normale
+      const constraints = [
+        where('level', '==', level)
+      ];
+
+      // Gestion du tri
       if (sortBy === 'alphabetical') {
-        allWords.sort((a, b) => a.word.localeCompare(b.word));
-      } else if (sortBy === 'frequency') {
-        allWords.sort((a, b) => (b.frequency || 0) - (a.frequency || 0));
-      } else if (sortBy === 'random') {
-        allWords.sort(() => Math.random() - 0.5);
+        constraints.push(orderBy('word', 'asc'));
+      } else {
+        constraints.push(orderBy('frequency', 'desc'));
       }
-      
-      // Supprimer les doublons
-      const uniqueWords = allWords.reduce((acc, current) => {
-        const exists = acc.find(item => item.word.toLowerCase() === current.word.toLowerCase());
-        if (!exists) {
-          acc.push(current);
-        }
-        return acc;
-      }, []);
-      
-      // Paginer côté client
-      const startIndex = (pageNumber - 1) * WORDS_PER_PAGE;
-      const endIndex = startIndex + WORDS_PER_PAGE;
-      const paginatedWords = uniqueWords.slice(startIndex, endIndex);
-      
-      return {
-        words: paginatedWords,
-        hasMore: endIndex < uniqueWords.length,
-        total: uniqueWords.length
-      };
+
+      // Gestion de la pagination optimisée
+      if (lastVisibleDoc) {
+        constraints.push(startAfter(lastVisibleDoc));
+      }
+
+      constraints.push(limit(WORDS_PER_PAGE));
+      q = query(wordsCollection, ...constraints);
     }
+
+    const querySnapshot = await getDocs(q);
+    const docs = querySnapshot.docs;
+
+    // On retourne les données + le dernier doc pour la prochaine requête
+    return {
+      words: docs.map(doc => ({ id: doc.id, ...doc.data() })),
+      lastVisible: docs.length > 0 ? docs[docs.length - 1] : null, // À stocker dans votre state React/Vue
+      hasMore: docs.length === WORDS_PER_PAGE
+    };
+
   } catch (error) {
     console.error('Erreur récupération mots paginés:', error);
-    return { words: [], hasMore: false, total: 0 };
+    return { words: [], lastVisible: null, hasMore: false };
   }
 };
 
-// Récupérer les mots irréguliers avec pagination
-export const getIrregularWordsPaginated = async (pageNumber = 1, searchTerm = '') => {
+
+/**
+ * 
+ * @param {Object|null} lastVisibleDoc - Le dernier objet document récupéré (null pour la 1ère page)
+ * @param {string} searchTerm - Le terme de recherche
+ */
+export const getIrregularWordsPaginated = async (lastVisibleDoc = null, searchTerm = '') => {
   try {
     const wordsCollection = collection(db, 'words');
-    
-    if (!searchTerm) {
-      // Sans recherche, pagination native
+    //const constraints = [where('isIrregular', '==', true)];
+    let q;
+
+    // Recherche active 
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      const searchEnd = searchLower + '\uf8ff'; // Caractère spécial Unicode pour dire "jusqu'à la fin"
+
+      // Note: Pour chercher, on force le tri alphabétique car Firestore l'exige pour les requêtes de plage (range queries)
       const constraints = [
         where('isIrregular', '==', true),
-        orderBy('word', 'asc'),
+        orderBy('word'), 
+        where('word', '>=', searchLower),
+        where('word', '<=', searchEnd),
         limit(WORDS_PER_PAGE)
       ];
-      
-      if (pageNumber > 1) {
-        const skipCount = (pageNumber - 1) * WORDS_PER_PAGE;
-        const previousQuery = query(wordsCollection, ...constraints.slice(0, -1), limit(skipCount));
-        const previousSnapshot = await getDocs(previousQuery);
-        
-        if (previousSnapshot.docs.length > 0) {
-          const lastDoc = previousSnapshot.docs[previousSnapshot.docs.length - 1];
-          const paginatedQuery = query(
-            wordsCollection,
-            ...constraints.slice(0, -1),
-            startAfter(lastDoc),
-            limit(WORDS_PER_PAGE)
-          );
-          const querySnapshot = await getDocs(paginatedQuery);
-          
-          return {
-            words: querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-            hasMore: querySnapshot.docs.length === WORDS_PER_PAGE
-          };
-        }
+
+      if (lastVisibleDoc) {
+        constraints.push(startAfter(lastVisibleDoc));
       }
-      
-      const q = query(wordsCollection, ...constraints);
-      const querySnapshot = await getDocs(q);
-      
-      return {
-        words: querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-        hasMore: querySnapshot.docs.length === WORDS_PER_PAGE
-      };
+
+      q = query(wordsCollection, ...constraints);
+    
     } else {
-      // Avec recherche, filtrer côté client
-      const q = query(wordsCollection, where('isIrregular', '==', true));
-      const querySnapshot = await getDocs(q);
-      
-      let allWords = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      // Filtrer par recherche
-      allWords = allWords.filter(wordData => 
-        wordData.word.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      
-      // Supprimer doublons
-      const uniqueWords = allWords.reduce((acc, current) => {
-        const exists = acc.find(item => item.word.toLowerCase() === current.word.toLowerCase());
-        if (!exists) {
-          acc.push(current);
-        }
-        return acc;
-      }, []);
-      
-      // Trier alphabétiquement
-      uniqueWords.sort((a, b) => a.word.localeCompare(b.word));
-      
-      // Paginer
-      const startIndex = (pageNumber - 1) * WORDS_PER_PAGE;
-      const endIndex = startIndex + WORDS_PER_PAGE;
-      const paginatedWords = uniqueWords.slice(startIndex, endIndex);
-      
-      return {
-        words: paginatedWords,
-        hasMore: endIndex < uniqueWords.length,
-        total: uniqueWords.length
-      };
+      // Navigation normale
+      const constraints = [
+        where('isIrregular', '==', true)
+      ];
+
+      // Gestion de la pagination optimisée
+      if (lastVisibleDoc) {
+        constraints.push(startAfter(lastVisibleDoc));
+      }
+
+      constraints.push(limit(WORDS_PER_PAGE));
+      q = query(wordsCollection, ...constraints);
     }
+
+    const querySnapshot = await getDocs(q);
+    const docs = querySnapshot.docs;
+
+    // On retourne les données + le dernier doc pour la prochaine requête
+    return {
+      words: docs.map(doc => ({ id: doc.id, ...doc.data() })),
+      lastVisible: docs.length > 0 ? docs[docs.length - 1] : null, // À stocker dans votre state React/Vue
+      hasMore: docs.length === WORDS_PER_PAGE
+    };
+
   } catch (error) {
-    console.error('Erreur récupération mots irréguliers paginés:', error);
-    return { words: [], hasMore: false, total: 0 };
+    console.error('Erreur récupération mots paginés:', error);
+    return { words: [], lastVisible: null, hasMore: false };
   }
 };
+
+
 
 // Anciennes fonctions conservées pour compatibilité (peuvent être supprimées si non utilisées ailleurs)
 export const getWordsByLevel = async (level) => {

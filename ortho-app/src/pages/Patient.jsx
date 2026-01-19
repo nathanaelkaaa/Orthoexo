@@ -1,57 +1,58 @@
 import React, { useState, useEffect } from 'react';
 import { Brain } from 'lucide-react';
-import { listenForActiveSession, clearUserSessions, updateSessionStatus, deleteSession } from '../services/firestoreService';
+import { 
+  listenForActiveSession, 
+  clearUserSessions, 
+  updateSessionStatus, 
+  deleteSession 
+} from '../services/firestoreService';
 import PatientWaiting from '../components/patient/PatientWaiting';
 import PatientReady from '../components/patient/PatientReady';
 import PatientResult from '../components/patient/PatientResult';
+import AnagramResult from '../components/exercises/results/AnagramResult';
+import MemoryResult from '../components/exercises/results/MemoryResult';
 import AnagramExercise from '../components/exercises/AnagramExercise';
+import MemoryExercise from '../components/exercises/MemoryExercise';
+import GAME_TYPE from '../constants/GAME_TYPE';
 
 const Patient = ({ currentUser, onBack }) => {
-  const [status, setStatus] = useState('searching');
+  const [view, setView] = useState('searching');
   const [session, setSession] = useState(null);
 
-  // Écouter la session
   useEffect(() => {
     const unsubscribe = listenForActiveSession(currentUser.uid, (sessionData) => {
       if (sessionData) {
         setSession(sessionData);
-        
-        if (sessionData.status === 'finished') {
-          setStatus('result');
-        } else if (sessionData.status === 'active') {
-          setStatus('active');
-        } else if (sessionData.status === 'waiting') {
-          setStatus('waiting');
+        // Router de vues basé sur Firestore
+        switch (sessionData.status) {
+          case 'waiting': setView('ready'); break;
+          case 'active': setView('active'); break;
+          case 'completed': setView('result'); break;
+          default: setView('searching');
         }
       } else {
-        setSession(null); 
-        setStatus('searching');
+        setSession(null);
+        setView('searching');
       }
     });
     return () => unsubscribe();
   }, [currentUser.uid]);
 
-  const handleDebugClear = async () => {
-    if (window.confirm("DEBUG: Voulez-vous vraiment supprimer TOUTES les sessions en cours ?")) {
-      await clearUserSessions(currentUser.uid);
-      setSession(null);
-      setStatus('searching');
-      alert("Sessions nettoyées !");
-    }
+  const handleStartGame = async () => {
+    if (session?.id) await updateSessionStatus(session.id, 'active');
   };
 
   const handleFinished = async () => {
-    setStatus('waiting_finish');
+    if (session?.id) await updateSessionStatus(session.id, 'completed');
   };
 
   const handleReturnToStart = async () => {
-    await deleteSession(session.id);
-    setStatus('searching');
+    if (session?.id) await deleteSession(session.id);
+    setView('searching');
   };
 
-
-return (
-<div className="min-h-screen bg-gray-50">
+  return (
+    <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow-sm">
         <div className="container mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -60,49 +61,61 @@ return (
           </div>
           <div className="flex items-center gap-4">
             <span className="text-gray-600">{currentUser?.email}</span>
-            <button 
-              onClick={onBack}
-              className="text-gray-600 hover:text-gray-800"
-            >
-              ← Retour
-            </button>
+            <button onClick={onBack} className="text-gray-600 hover:text-gray-800">← Quitter</button>
           </div>
         </div>
       </nav>
 
-        
-        {status === 'searching' && (
-          // Vue : Recherche en cours
-          <PatientWaiting 
-            currentUser={currentUser}
-            onDebugClear={handleDebugClear}
-          />
-        )}
+      {view === 'searching' && (
+        <PatientWaiting 
+          currentUser={currentUser} 
+          onDebugClear={async () => {
+             if (window.confirm("DEBUG: Supprimer ?")) await clearUserSessions(currentUser.uid);
+          }}
+        />
+      )}
 
-        {(status === 'waiting' && session) && (
-          // Vue : Session trouvée - Prêt à démarrer
-          <PatientReady 
-            session={session}
-            onStatusChange={setStatus}
-          />
-        )}
+      {view === 'ready' && session && (
+        <PatientReady session={session} onStart={handleStartGame} />
+      )}
 
-        {(status === 'active' && session) && (
-          // Vue : Exercice actif
-          <AnagramExercise 
-            session={session}
-            isPatientMode={true}
-            onFinish={() => setStatus('waiting_finish')}
-          />
-        )}
+      {view === 'active' && session && (
+        <>
+          {session.type === GAME_TYPE.anagram && (
+            <AnagramExercise 
+              session={session}
+              isPatientMode={true}
+              onFinish={handleFinished}
+            />
+          )}
+          {session.type === GAME_TYPE.memory && (
+            <MemoryExercise 
+              session={session}
+              isPatientMode={true}
+              onFinish={handleFinished}
+            />
+          )}
+        </>
+      )}
 
-        {(status === 'waiting_finish' || status === 'result') && (
-          // Vue : Résultat
-          <PatientResult 
-            session={session}
-            onReturnToStart={handleReturnToStart}
-          />
-        )}
+      {/* ZONE RÉSULTATS : Choix du composant selon le type de jeu */}
+      {view === 'result' && session && (
+        <>
+          {session.type === GAME_TYPE.anagram && (
+            <AnagramResult 
+              session={session}
+              onReturnToStart={handleReturnToStart}
+            />
+          )}
+          
+          {session.type === GAME_TYPE.memory && (
+            <MemoryResult 
+              session={session}
+              onReturnToStart={handleReturnToStart}
+            />
+          )}
+        </>
+      )}
     </div>
   );
 };

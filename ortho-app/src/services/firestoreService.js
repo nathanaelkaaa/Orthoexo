@@ -59,13 +59,14 @@ export const listenForActiveSession = (uid, callback) => {
   );
 
   return onSnapshot(q, (snapshot) => {
+    console.log("onSnapshot");
     // 1. On récupère toutes les sessions de l'utilisateur
     const allSessions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     
     // 2. IMPORTANT : On ne garde que celles qui sont Active ou Finie
     // (On ignore les vieilles sessions 'waiting' ou buggées qui bloqueraient la vue)
   
-    const validSessions = allSessions.filter(s => s.status === 'active' || s.status === 'waiting');
+    const validSessions = allSessions.filter(s => s.status === 'active' || s.status === 'waiting' || s.status === 'completed' );
 
     // 3. On trie par date (la plus récente en premier)
     validSessions.sort((a, b) => {
@@ -96,14 +97,16 @@ export const observeSessionById = (sessionId, callback) => {
   });
 };
 
-// 4. Mettre à jour le statut (ex: passer de 'waiting' à 'active' ou 'finished')
+// 4. Mettre à jour le statut (ex: passer de 'waiting' à 'active' ou 'completed')
 export const updateSessionStatus = async (sessionId, status) => {
+  console.log("(f) updateSessionStatus");
   const sessionRef = doc(db, 'sessions', sessionId);
   await updateDoc(sessionRef, { status: status });
 };
 
 // Supprimer une session spécifique
 export const deleteSession = async (sessionId) => {
+  console.log("(f) deleteSession");
   try {
     await deleteDoc(doc(db, 'sessions', sessionId));
   } catch (error) {
