@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowRight, BarChart3, Clock, RefreshCw, Brain, Layers } from 'lucide-react';
 
 const HistoryView = ({ onBack }) => {
@@ -51,7 +51,7 @@ const HistoryView = ({ onBack }) => {
     return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
   };
 
-  // --- RENDU DÉTAILS : ANAGRAMME ---
+  // Rendu détaillée : anagram
   const renderAnagramDetails = (exercise) => (
     <>
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
@@ -99,10 +99,8 @@ const HistoryView = ({ onBack }) => {
     </>
   );
 
-  // --- RENDU DÉTAILS : MEMORY ---
+  // Rendu détaillée : memory
   const renderMemoryDetails = (exercise) => {
-    // Dans memory, results est un tableau contenant l'objet final {moves, duration...}
-    // ou parfois c'est directement stocké, on sécurise l'accès :
     const stats = exercise.results.find(r => r.completed) || exercise.results[0] || {};
     
     return (
@@ -126,7 +124,6 @@ const HistoryView = ({ onBack }) => {
             Paires trouvées ({exercise.words.length / 2})
           </h3>
           <div className="flex flex-wrap gap-2">
-            {/* On déduplique les mots pour afficher les paires */}
             {[...new Set(exercise.words)].map((word, idx) => (
               <span key={idx} className="px-3 py-1 bg-white border border-gray-300 rounded-full text-gray-700 text-sm font-medium">
                 {word}
@@ -138,7 +135,7 @@ const HistoryView = ({ onBack }) => {
     );
   };
 
-  // --- VUE DÉTAILLÉE (MODALE) ---
+  // Vue détaillée
   if (selectedExercise) {
     return (
       <div>
@@ -170,7 +167,7 @@ const HistoryView = ({ onBack }) => {
     );
   }
 
-  // --- VUE LISTE (GRID) ---
+  // Vue grid
   return (
     <div>
       <button 
@@ -186,7 +183,7 @@ const HistoryView = ({ onBack }) => {
         {history.length > 0 && (
           <button
             onClick={clearHistory}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition shadow-sm"
+            className="px-4 py-2 bg-rose-400 text-white rounded-lg hover:bg-rose-500 transition shadow-sm"
           >
             Tout effacer
           </button>

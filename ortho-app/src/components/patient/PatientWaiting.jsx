@@ -1,7 +1,6 @@
-import React from 'react';
 import { Brain } from 'lucide-react';
 
-const PatientWaiting = ({ currentUser, onDebugClear }) => {
+const PatientWaiting = () => {
   return (
     <div className="min-h-screen bg-purple-50 flex flex-col items-center justify-center p-6 text-center">
       <div className="animate-bounce mb-6">

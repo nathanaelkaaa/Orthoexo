@@ -1,4 +1,3 @@
-import React from 'react';
 import { Trophy, Clock, Brain } from 'lucide-react';
 
 const AnagramResult = ({ session, onReturnToStart }) => {
@@ -6,8 +5,7 @@ const AnagramResult = ({ session, onReturnToStart }) => {
   const totalQuestions = session.words.length;
   const correctCount = answers.filter(a => a.correct).length;
 
-  // Calcul de la durée basé sur les timestamps Firestore (persistants)
-  // Si pas de timestamps, on affiche 0
+  // Calcul de la durée 
   let duration = 0;
   if (session.createdAt && answers.length > 0) {
     const startTime = new Date(session.createdAt);

@@ -1,14 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Brain } from 'lucide-react';
 import { 
-  listenForActiveSession, 
-  clearUserSessions, 
+  listenForActiveSession,
   updateSessionStatus, 
   deleteSession 
 } from '../services/firestoreService';
 import PatientWaiting from '../components/patient/PatientWaiting';
 import PatientReady from '../components/patient/PatientReady';
-import PatientResult from '../components/patient/PatientResult';
 import AnagramResult from '../components/exercises/results/AnagramResult';
 import MemoryResult from '../components/exercises/results/MemoryResult';
 import AnagramExercise from '../components/exercises/AnagramExercise';
@@ -23,7 +21,7 @@ const Patient = ({ currentUser, onBack }) => {
     const unsubscribe = listenForActiveSession(currentUser.uid, (sessionData) => {
       if (sessionData) {
         setSession(sessionData);
-        // Router de vues basé sur Firestore
+        // Router de vues
         switch (sessionData.status) {
           case 'waiting': setView('ready'); break;
           case 'active': setView('active'); break;
@@ -67,18 +65,14 @@ const Patient = ({ currentUser, onBack }) => {
       </nav>
 
       {view === 'searching' && (
-        <PatientWaiting 
-          currentUser={currentUser} 
-          onDebugClear={async () => {
-             if (window.confirm("DEBUG: Supprimer ?")) await clearUserSessions(currentUser.uid);
-          }}
-        />
+        <PatientWaiting/>
       )}
 
       {view === 'ready' && session && (
         <PatientReady session={session} onStart={handleStartGame} />
       )}
 
+      {/* Zone Exercices */}
       {view === 'active' && session && (
         <>
           {session.type === GAME_TYPE.anagram && (
@@ -98,7 +92,7 @@ const Patient = ({ currentUser, onBack }) => {
         </>
       )}
 
-      {/* ZONE RÉSULTATS : Choix du composant selon le type de jeu */}
+      {/* Zone Résultats */}
       {view === 'result' && session && (
         <>
           {session.type === GAME_TYPE.anagram && (

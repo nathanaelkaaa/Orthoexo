@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Check, X, Clock, RefreshCw, Brain } from 'lucide-react';
 import { observeSessionById, deleteSession } from '../../services/firestoreService';
 import GAME_TYPE from '../../constants/GAME_TYPE';
@@ -7,16 +7,19 @@ import GAME_LABELS from '../../constants/GAME_LABELS';
 const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) => {
   const [liveData, setLiveData] = useState(sessionData);
   const answers = liveData.patientAnswers || [];
-  const gameType = liveData.type; // 'anagram' ou 'memory'
-  console.log("liveData, ",liveData.type)
+  const gameType = liveData.type;
 
-  //TODO Chelou ça un peu
-  // Logique de fin différente selon le jeu
-  const isFinished = gameType === 'anagram'
-    ? answers.length >= (liveData.words?.length || 0)
-    : answers.some(a => a.completed === true); // Pour le Memory, on cherche l'objet de fin
+  const checkIsFinished = () => {
+    if (gameType === 'anagram') {
+      return answers.length >= (liveData.words?.length || 0);
+    }
+    if (gameType === 'memory') {
+      return answers.some(a => a.completed === true);
+    }
+      return false;
+  };
+  const isFinished = checkIsFinished();
 
-  // Observation temps réel Firestore
   useEffect(() => {
     const unsubscribe = observeSessionById(sessionData.id, (data) => {
       if (data) setLiveData(data);
@@ -26,21 +29,17 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
 
   // Suppression Automatique
   useEffect(() => {
-    console.log("État session:", { isFinished, id: sessionData?.id });
-    
     const autoDelete = async () => {
       if (isFinished && sessionData?.id) {
         try {
-          console.log("Suppression automatique de la session...");
           await deleteSession(sessionData.id);
         } catch (error) {
           console.error("Erreur lors de la suppression auto:", error);
         }
       }
     };
-
     if (isFinished) {
-      // Délai de 10 secondes avant suppression pour laisser le temps de voir les résultats
+      // Délai de 10 secondes avant suppression
       const timer = setTimeout(() => {
         autoDelete();
       }, 10000);
@@ -49,7 +48,7 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
   }, [isFinished, sessionData.id]);
 
   const handleFinishAndSave = () => {
-    // On sauvegarde les résultats dans l'historique local du praticien
+    // On sauvegarde dans l'historique
     saveExerciseToHistory(gameType, liveData.words, answers);
     onFinish();
   };
@@ -65,7 +64,7 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
   }
 };
 
-  // --- RENDU : VUE ANAGRAMME ---
+  // Rendu anagram
   const renderAnagramView = () => (
     <div className="grid grid-cols-2 gap-8 mb-8">
       <div>
@@ -75,10 +74,7 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
         </h3>
         <ul className="space-y-2 max-h-[400px] overflow-y-auto">
           {liveData.words.map((word, idx) => {
-            // On cherche la réponse correspondant à ce mot (ou par index si séquentiel)
-            // Ici on assume que l'ordre est conservé ou on match par mot
             const answer = answers.find(a => a.word === word) || answers[idx];
-            
             const statusColor = answer 
               ? (answer.correct ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200") 
               : "bg-gray-50 text-gray-400 border-gray-200";
@@ -121,9 +117,8 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
     </div>
   );
 
-  // --- RENDU : VUE MEMORY ---
+  // Rendu memory
   const renderMemoryView = () => {
-    // Dans le cas du memory, la réponse est souvent un objet unique à la fin
     const result = answers.find(a => a.completed === true);
 
     return (

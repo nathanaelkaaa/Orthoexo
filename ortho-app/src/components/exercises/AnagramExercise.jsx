@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowRight, Check, X } from 'lucide-react'; 
 import { sendAnswer } from '../../services/firestoreService';
 
@@ -22,7 +22,7 @@ const AnagramExercise = ({
   const finishTriggered = useRef(false);
   const hasLoaded = useRef(false);
 
-  // Fonction de mélange
+  // Mélange
   const shuffleWord = useCallback((word) => {
     if (!word || word.length < 2) return word;
     const splitWord = word.split('');
@@ -45,8 +45,7 @@ const AnagramExercise = ({
     const initExercises = async () => {
       let wordsToUse = [];
 
-      // Si mode patient, on utilise les mots de la session
-      // Sinon (mode test praticien), on utilise les mots sélectionnés
+      // Si mode patient, on utilise les mots de la session sinon mots sélectionnés (praticien)
       if (isPatientMode && session && session.words) {
         wordsToUse = session.words;
       } else if (!isPatientMode && selectedWords.length > 0) {
@@ -63,7 +62,7 @@ const AnagramExercise = ({
         
         hasLoaded.current = true;
         
-        // Petit délai pour l'UX
+        // Délai pour l'UX
         setTimeout(() => {
           setExercises(generated);
           setLoading(false);
@@ -99,19 +98,15 @@ const AnagramExercise = ({
     }
   };
 
-  // Passage suite ou Fin
+  // Exercise suivant ou Fin
   const nextExercise = () => {
     if (currentIndex < exercises.length - 1) {
       setCurrentIndex(prev => prev + 1);
       setUserAnswer('');
       setQuestionFinished(false);
     } else {
-      // --- FIN DE L'EXERCICE ---
       if (finishTriggered.current) return;
       finishTriggered.current = true;
-      
-      // On déclenche la fin -> Patient.jsx va passer le status à 'completed'
-      // Ce composant sera démonté et remplacé par AnagramResult
       onFinish(); 
     }
   };

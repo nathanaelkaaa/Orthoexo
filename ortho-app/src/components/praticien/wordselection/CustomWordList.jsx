@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { ArrowRight, BookOpen } from 'lucide-react';
 
-
-// Custom Word List (pas de pagination nécessaire)
 const CustomWordList = ({ onBack, selectedWords, setSelectedWords }) => {
   const [newWord, setNewWord] = useState('');
   const [searchTerm, setSearchTerm] = useState('');

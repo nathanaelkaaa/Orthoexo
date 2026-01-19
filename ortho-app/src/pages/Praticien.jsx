@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Brain, Upload } from 'lucide-react';
 import CategoriesView from '../components/praticien/CategoriesView';
 import WordSelectionView from '../components/praticien/WordSelectionView';
@@ -19,13 +19,14 @@ const Praticien = ({ currentUser, onBack }) => {
             <span className="text-xl font-bold">Espace Praticien</span>
           </div>
           <div className="flex items-center gap-4">
+            {/*
             <button
               onClick={() => setShowImporter(!showImporter)}
               className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
             >
               <Upload className="w-4 h-4" />
               Importer Manulex
-            </button>
+            </button>*/}
             <span className="text-gray-600">{currentUser?.email}</span>
             <button 
               onClick={onBack}

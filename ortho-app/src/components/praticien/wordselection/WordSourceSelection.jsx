@@ -11,7 +11,7 @@ const WordSourceSelection = ({ onSelectSource, selectedWords, onCreateExercise, 
         {selectedWords.length > 0 && (
           <button
             onClick={onClearSelection}
-            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm"
+            className="px-4 py-2 bg-rose-400 text-white rounded-lg hover:bg-rose-500 transition text-sm"
           >
             Effacer
           </button>
@@ -19,7 +19,7 @@ const WordSourceSelection = ({ onSelectSource, selectedWords, onCreateExercise, 
         {selectedWords.length >= 3 && (
           <button
             onClick={onCreateExercise}
-            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
           >
             Créer un exercice →
           </button>

@@ -2,21 +2,18 @@ import { useState, useEffect } from 'react';
 import { ArrowRight, ChevronRight } from 'lucide-react';
 import { getWordsByLevelPaginated } from '../../../services/manulexService';
 
-// Frequency Word List avec PAGINATION OPTIMISÉE (Load More)
 const FrequencyWordList = ({ onBack, selectedWords, setSelectedWords }) => {
   const [selectedLevel, setSelectedLevel] = useState('CP');
   const [searchTerm, setSearchTerm] = useState('');
-  const [words, setWords] = useState([]); // Liste cumulée
+  const [words, setWords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sortBy, setSortBy] = useState('frequency');
-  const [lastDoc, setLastDoc] = useState(null); // Curseur Firestore
+  const [lastDoc, setLastDoc] = useState(null);
   const [hasMore, setHasMore] = useState(false);
-  
   const levels = ['CP', 'CE1', 'CE2-CM2'];
 
-  // Réinitialiser et charger quand les filtres changent
+
   useEffect(() => {
-    // On passe null pour le curseur pour dire "repart du début"
     loadWords(true);
   }, [selectedLevel, sortBy, searchTerm]);
 
@@ -25,8 +22,7 @@ const FrequencyWordList = ({ onBack, selectedWords, setSelectedWords }) => {
     setLoading(true);
     
     try {
-      // Si c'est un reset (nouveau filtre), on ne passe pas de curseur (null)
-      // Sinon, on passe le lastDoc actuel
+      // Si reset pas de curseur sinon on utilise lastDoc
       const cursor = isReset ? null : lastDoc;
       
       const result = await getWordsByLevelPaginated(
@@ -39,7 +35,6 @@ const FrequencyWordList = ({ onBack, selectedWords, setSelectedWords }) => {
       if (isReset) {
         setWords(result.words);
       } else {
-        // On ajoute les nouveaux mots à la suite
         setWords(prev => [...prev, ...result.words]);
       }
       

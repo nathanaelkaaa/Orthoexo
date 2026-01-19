@@ -1,11 +1,15 @@
-import { collection, getDocs, writeBatch, doc } from 'firebase/firestore';
+import { collection, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
+
+/***
+ * Outil de debug:
+ * Supprime les doublons dans la bdd
+ */
 export const removeDuplicateWords = async () => {
   console.log("Démarrage du nettoyage des doublons...");
   
   try {
-    // 1. Récupérer TOUS les documents (Attention si vous avez > 20k mots, ça peut être lourd)
     const snapshot = await getDocs(collection(db, 'words'));
     console.log(`Analyse de ${snapshot.size} documents...`);
 
@@ -13,16 +17,16 @@ export const removeDuplicateWords = async () => {
     const duplicatesToDelete = [];
     let keptCount = 0;
 
-    // 2. Identifier les doublons
+    // Identifier les doublons
     snapshot.docs.forEach((docSnapshot) => {
       const data = docSnapshot.data();
-      // On normalise : minuscule et sans espaces inutiles
+      // On normalise (: )minuscule et sans espaces inutiles)
       const wordNormalized = data.word ? data.word.toLowerCase().trim() : null;
 
       if (!wordNormalized) return; // Ignorer les docs sans champ 'word'
 
       if (seenWords.has(wordNormalized)) {
-        // C'est un doublon ! On garde la référence pour le supprimer
+        // C'est un doublon, on sauvegarde
         duplicatesToDelete.push(docSnapshot.ref);
       } else {
         // C'est la première fois qu'on voit ce mot, on le garde
@@ -42,7 +46,7 @@ export const removeDuplicateWords = async () => {
       return;
     }
 
-    // 3. Supprimer par lots de 500 (Limite Firestore)
+    // Supprimer par lots de 500 (Limite Firestore)
     const BATCH_SIZE = 500;
     const totalBatches = Math.ceil(duplicatesToDelete.length / BATCH_SIZE);
     

@@ -1,10 +1,9 @@
-import React from 'react';
-import { Trophy, Clock, RefreshCw, Brain } from 'lucide-react';
+import { Trophy, Clock, RefreshCw } from 'lucide-react';
 
 const MemoryResult = ({ session, onReturnToStart }) => {
   const answers = session.patientAnswers || [];
   
-  // On cherche l'objet qui contient les stats finales
+  // Objet stats finale
   const finalStats = answers.find(a => a.completed === true) || { moves: 0, duration: 0 };
 
   return (

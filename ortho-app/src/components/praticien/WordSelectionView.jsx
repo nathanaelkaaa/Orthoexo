@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowRight, BarChart3, MessageSquare, User, BookOpen, Play, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowRight} from 'lucide-react';
 import { createSession } from '../../services/firestoreService';
-import { getWordsByLevelPaginated, getIrregularWordsPaginated } from '../../services/manulexService';
 import AnagramExercise from '../exercises/AnagramExercise';
 import MemoryExercise from '../exercises/MemoryExercise';
 import PractitionerMonitor from './PractitionerMonitor';
@@ -11,7 +10,7 @@ import IrregularWordList from './wordselection/IrregularWordList';
 import WordSourceSelection from './wordselection/WordSourceSelection';
 import ExerciseTypeSelection from './ExerciseTypeSelection';
 
-const WordSelectionView = ({ currentUser, category, onBack }) => {
+const WordSelectionView = ({ currentUser, onBack }) => {
   const [wordView, setWordView] = useState('selection');
   const [selectedWords, setSelectedWords] = useState([]);
   const [activeSession, setActiveSession] = useState(null);
@@ -51,7 +50,6 @@ const WordSelectionView = ({ currentUser, category, onBack }) => {
         .sort(() => Math.random() - 0.5)
         .slice(0, count);
 
-        //TODO : définir le type 
       const sessionId = await createSession(currentUser.uid, type, sessionWords);
       setActiveSession({ 
         id: sessionId, 
@@ -191,6 +189,5 @@ const WordSelectionView = ({ currentUser, category, onBack }) => {
     </div>
   );
 };
-
 
 export default WordSelectionView;

@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { User, Brain, ArrowRight, MessageSquare, Users, BarChart3, BookOpen, LogOut, Upload, Play, Check, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { User, Brain, ArrowRight, MessageSquare, Users, BarChart3, BookOpen, LogOut } from 'lucide-react';
 import { registerUser, loginUser, logoutUser, observeAuthState } from './services/authService';
-import { addPractitioner, createSession, listenForActiveSession, sendAnswer, updateSessionStatus, observeSessionById, clearUserSessions,deleteSession  } from './services/firestoreService';
+import { addPractitioner } from './services/firestoreService';
 import Praticien from './pages/Praticien';
 import Patient from './pages/Patient';
 
 const OrthoApp = () => {
   const [currentPage, setCurrentPage] = useState('landing');
-  const [userType, setUserType] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -228,7 +227,7 @@ const OrthoApp = () => {
     );
   };
 
-  // Home Page - User Type Selection
+  // Home Page - Choix du type d'utilisateur
   const HomePage = () => (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
       <div className="container mx-auto px-6 py-6 flex justify-between items-center">
@@ -242,7 +241,6 @@ const OrthoApp = () => {
             onClick={async () => {
               await logoutUser();
               setCurrentPage('landing');
-              setUserType(null);
             }}
             className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-white rounded-lg transition"
           >
@@ -258,7 +256,6 @@ const OrthoApp = () => {
           <div className="grid md:grid-cols-2 gap-8">
             <div 
               onClick={() => {
-                setUserType('praticien');
                 setCurrentPage('praticien');
               }}
               className="bg-white p-10 rounded-2xl shadow-xl hover:shadow-2xl transition cursor-pointer group"
@@ -275,7 +272,6 @@ const OrthoApp = () => {
 
             <div 
               onClick={() => {
-                setUserType('patient');
                 setCurrentPage('patient');
               }}
               className="bg-white p-10 rounded-2xl shadow-xl hover:shadow-2xl transition cursor-pointer group"

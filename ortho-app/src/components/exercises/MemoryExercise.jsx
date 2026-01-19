@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ArrowRight, RefreshCw, Trophy } from 'lucide-react';
 import { sendAnswer } from '../../services/firestoreService';
 
@@ -65,11 +65,10 @@ const MemoryExercise = ({
 
 
   const handleCardClick = (index) => {
-    // Si finishTriggered est true, on bloque toute interaction
+    // Si finishTriggered true, bloquer toutes les interactions
     if (finishTriggered.current || isLocked || cards[index].isMatched || flippedCards.includes(index)) {
       return;
     }
-
     const newCards = [...cards];
     newCards[index].isFlipped = true;
     setCards(newCards);
@@ -101,7 +100,6 @@ const MemoryExercise = ({
 
       const allMatched = updatedCards.every(c => c.isMatched);
       if (allMatched) {
-        // Ajout de +1 car le state moves n'est pas encore mis à jour dans ce cycle
         handleGameEnd(moves + 1);
       }
     } else {
@@ -121,24 +119,21 @@ const MemoryExercise = ({
 
   const handleGameEnd = async (finalMoves) => {
     if (finishTriggered.current) return;
-    finishTriggered.current = true; // Verrouillage immédiat
+    finishTriggered.current = true; // Verrouillage
 
     const endTime = new Date();
     const duration = startTime ? Math.round((endTime - startTime) / 1000) : 0;
 
     if (isPatientMode && session) {
       try {
-        // On envoie les stats finales
         await sendAnswer(session.id, { 
           gameType: 'memory',
-          completed: true, // Marqueur important pour MemoryResult
+          completed: true,
           moves: finalMoves,
           duration: duration,
           timestamp: new Date().toISOString() 
         });
-        
         console.log("Memory terminé, verrouillage de la session...");
-        // On déclenche la fermeture sécurisée
         onFinish(); 
       } catch (error) {
         console.error("Erreur envoi réponse:", error);
@@ -162,7 +157,7 @@ const MemoryExercise = ({
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
       <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-4xl">
         
-        {/* Header avec bouton quitter (Praticien ou avant la fin) */}
+        {/* Header Praticien */}
         {!isPatientMode && onBack && (
           <button 
             onClick={onBack}

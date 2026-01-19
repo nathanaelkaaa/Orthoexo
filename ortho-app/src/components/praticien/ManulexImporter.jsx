@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Upload, CheckCircle, AlertCircle } from 'lucide-react';
 import { parseManulexFile, transformManulexData, importWordsToFirestore } from '../../services/manulexService';
 

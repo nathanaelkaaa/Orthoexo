@@ -1,5 +1,4 @@
 import { 
-  getFirestore,
   collection, 
   addDoc, 
   getDocs, 
@@ -8,14 +7,13 @@ import {
   query, 
   where,
   onSnapshot,
-  orderBy,
-  limit,
   arrayUnion,
   deleteDoc 
 } from 'firebase/firestore';
-import { db } from '../config/firebase'; // Assurez-vous que le chemin est correct
+import { db } from '../config/firebase';
 
-// --- GESTION UTILISATEURS ---
+
+// 1. Gestion utilisateurs
 
 export const addPractitioner = async (practitionerData) => {
   try {
@@ -29,19 +27,19 @@ export const addPractitioner = async (practitionerData) => {
   }
 };
 
-// --- GESTION DES SESSIONS LIVE (TEMPS RÉEL) ---
 
-// 1. Créer une session liée à l'ID du praticien (uid)
+// 2. Cycle de vie des sessions (CRUD)
+
+// Créer une session liée à l'ID du praticien
 export const createSession = async (uid, type, words) => {
   try {
-    // On crée une session active
     const sessionRef = await addDoc(collection(db, 'sessions'), {
-      practitionerId: uid, // C'est ce qui lie le patient au praticien (même compte)
+      practitionerId: uid, // Lien Praticien <-> Patient
       type: type,
       words: words,
-      status: 'waiting', // waiting -> active -> finished
+      status: 'waiting', // Cycles : waiting -> active -> completed
       createdAt: new Date().toISOString(),
-      patientAnswers: [], // Liste des réponses
+      patientAnswers: [],
       score: 0
     });
     return sessionRef.id;
@@ -51,62 +49,8 @@ export const createSession = async (uid, type, words) => {
   }
 };
 
-// 2. Le Patient écoute s'il y a un exercice actif pour son compte
-export const listenForActiveSession = (uid, callback) => {
-  const q = query(
-    collection(db, 'sessions'),
-    where('practitionerId', '==', uid)
-  );
-
-  return onSnapshot(q, (snapshot) => {
-    console.log("onSnapshot");
-    // 1. On récupère toutes les sessions de l'utilisateur
-    const allSessions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    
-    // 2. IMPORTANT : On ne garde que celles qui sont Active ou Finie
-    // (On ignore les vieilles sessions 'waiting' ou buggées qui bloqueraient la vue)
-  
-    const validSessions = allSessions.filter(s => s.status === 'active' || s.status === 'waiting' || s.status === 'completed' );
-
-    // 3. On trie par date (la plus récente en premier)
-    validSessions.sort((a, b) => {
-      const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-      const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-      return dateB - dateA;
-    });
-
-    // 4. On prend la première de la liste filtrée
-    const currentSession = validSessions[0];
-
-    console.log("Sessions actives trouvées :", validSessions.length, "Session affichée :", currentSession, " All sessions", allSessions );
-
-    if (currentSession) {
-      callback(currentSession);
-    } else {
-      callback(null);
-    }
-  });
-};
-
-// 3. Le Praticien écoute une session spécifique (pour le monitoring)
-export const observeSessionById = (sessionId, callback) => {
-  return onSnapshot(doc(db, 'sessions', sessionId), (docSnapshot) => {
-    if (docSnapshot.exists()) {
-      callback({ id: docSnapshot.id, ...docSnapshot.data() });
-    }
-  });
-};
-
-// 4. Mettre à jour le statut (ex: passer de 'waiting' à 'active' ou 'completed')
-export const updateSessionStatus = async (sessionId, status) => {
-  console.log("(f) updateSessionStatus");
-  const sessionRef = doc(db, 'sessions', sessionId);
-  await updateDoc(sessionRef, { status: status });
-};
-
 // Supprimer une session spécifique
 export const deleteSession = async (sessionId) => {
-  console.log("(f) deleteSession");
   try {
     await deleteDoc(doc(db, 'sessions', sessionId));
   } catch (error) {
@@ -115,15 +59,7 @@ export const deleteSession = async (sessionId) => {
   }
 };
 
-// 5. Le Patient envoie une réponse
-export const sendAnswer = async (sessionId, answerData) => {
-  const sessionRef = doc(db, 'sessions', sessionId);
-  await updateDoc(sessionRef, {
-    patientAnswers: arrayUnion(answerData)
-  });
-};
-
-// 6. Debug supprime toutes les sessions en court
+// OUTIL DEBUG : Supprimer toutes les sessions d'un praticien
 export const clearUserSessions = async (uid) => {
   try {
     const q = query(
@@ -132,7 +68,6 @@ export const clearUserSessions = async (uid) => {
     );
     const snapshot = await getDocs(q);
     
-    // On supprime toutes les sessions trouvées une par une
     const deletePromises = snapshot.docs.map(document => 
       deleteDoc(doc(db, 'sessions', document.id))
     );
@@ -143,4 +78,67 @@ export const clearUserSessions = async (uid) => {
     console.error("Erreur lors du nettoyage :", error);
     throw error;
   }
+};
+
+
+// 3. Listeners
+
+// Côté Patient : Écoute la dernière session active ou terminée
+export const listenForActiveSession = (uid, callback) => {
+  const q = query(
+    collection(db, 'sessions'),
+    where('practitionerId', '==', uid)
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const allSessions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    // Filtrage : On garde 'completed' pour afficher l'écran de fin même après refresh
+    const validSessions = allSessions.filter(s => 
+      s.status === 'active' || 
+      s.status === 'waiting' || 
+      s.status === 'completed' 
+    );
+
+    // Tri par date : la plus récente en premier
+    validSessions.sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+      const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+      return dateB - dateA;
+    });
+
+    const currentSession = validSessions[0];
+
+    if (currentSession) {
+      callback(currentSession);
+    } else {
+      callback(null);
+    }
+  });
+};
+
+// Côté Praticien : Monitoring d'une session spécifique
+export const observeSessionById = (sessionId, callback) => {
+  return onSnapshot(doc(db, 'sessions', sessionId), (docSnapshot) => {
+    if (docSnapshot.exists()) {
+      callback({ id: docSnapshot.id, ...docSnapshot.data() });
+    }
+  });
+};
+
+
+// 4. Mises à jour de l'état du jeu
+
+// Changer le statut (waiting -> active -> completed)
+export const updateSessionStatus = async (sessionId, status) => {
+  const sessionRef = doc(db, 'sessions', sessionId);
+  await updateDoc(sessionRef, { status: status });
+};
+
+// Enregistrer une réponse du patient
+export const sendAnswer = async (sessionId, answerData) => {
+  const sessionRef = doc(db, 'sessions', sessionId);
+  await updateDoc(sessionRef, {
+    patientAnswers: arrayUnion(answerData)
+  });
 };

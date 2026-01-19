@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { ArrowRight, MessageSquare, Play } from 'lucide-react';
 import GAME_TYPE from '../../constants/GAME_TYPE';
 
-// Exercise Type Selection
 const ExerciseTypeSelection = ({ onBack, selectedWords, onSelectType, onLaunchForPatient }) => {
   const maxPossible = selectedWords.length;
   const [exerciseCount, setExerciseCount] = useState(Math.min(10, maxPossible));  

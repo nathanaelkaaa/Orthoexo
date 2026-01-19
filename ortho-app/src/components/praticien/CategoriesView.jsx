@@ -1,4 +1,3 @@
-import React from 'react';
 import { BookOpen, BarChart3 } from 'lucide-react';
 
 const CategoriesView = ({ onSelectCategory }) => {

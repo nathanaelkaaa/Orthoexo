@@ -24,7 +24,7 @@ const IRREGULAR_WORDS = [
   'yacht'
 ];
 
-const WORDS_PER_PAGE = 50; // Nombre de mots par page
+const WORDS_PER_PAGE = 50;
 
 // Parser le fichier Excel Manulex
 export const parseManulexFile = async (file) => {
@@ -174,15 +174,8 @@ export const clearAllWords = async (progressCallback) => {
   }
 };
 
-/**
- * OPTIMISATION : Utilisation du curseur (lastVisibleDoc) au lieu du numéro de page.
- * Cela évite de relire tous les documents précédents.
- * 
- * @param {string} level - Le niveau (CP, CE1, etc.)
- * @param {string} sortBy - 'frequency' ou 'alphabetical'
- * @param {Object|null} lastVisibleDoc - Le dernier objet document récupéré (null pour la 1ère page)
- * @param {string} searchTerm - Le terme de recherche
- */
+// Récupère les mots régulier par niveau
+
 export const getWordsByLevelPaginated = async (level, sortBy = 'frequency', lastVisibleDoc = null, searchTerm = '') => {
   try {
     const wordsCollection = collection(db, 'words');
@@ -191,9 +184,8 @@ export const getWordsByLevelPaginated = async (level, sortBy = 'frequency', last
     // Recherche active
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
-      const searchEnd = searchLower + '\uf8ff'; // Caractère spécial Unicode pour dire "jusqu'à la fin"
+      const searchEnd = searchLower + '\uf8ff'; 
 
-      // Note: Pour chercher, on force le tri alphabétique car Firestore l'exige pour les requêtes de plage (range queries)
       const constraints = [
         where('level', '==', level),
         orderBy('word'), 
@@ -202,7 +194,6 @@ export const getWordsByLevelPaginated = async (level, sortBy = 'frequency', last
         limit(WORDS_PER_PAGE)
       ];
 
-      console.log('lastVisibleDoc :',lastVisibleDoc);
       if (lastVisibleDoc) {
         constraints.push(startAfter(lastVisibleDoc));
       }
@@ -234,10 +225,10 @@ export const getWordsByLevelPaginated = async (level, sortBy = 'frequency', last
     const querySnapshot = await getDocs(q);
     const docs = querySnapshot.docs;
 
-    // On retourne les données + le dernier doc pour la prochaine requête
+    // Retourne les données + lastDoc pour prochaine requête
     return {
       words: docs.map(doc => ({ id: doc.id, ...doc.data() })),
-      lastVisible: docs.length > 0 ? docs[docs.length - 1] : null, // À stocker dans votre state React/Vue
+      lastVisible: docs.length > 0 ? docs[docs.length - 1] : null,
       hasMore: docs.length === WORDS_PER_PAGE
     };
 
@@ -248,23 +239,18 @@ export const getWordsByLevelPaginated = async (level, sortBy = 'frequency', last
 };
 
 
-/**
- * 
- * @param {Object|null} lastVisibleDoc - Le dernier objet document récupéré (null pour la 1ère page)
- * @param {string} searchTerm - Le terme de recherche
- */
+// Récupère les mots irréguliers
+
 export const getIrregularWordsPaginated = async (lastVisibleDoc = null, searchTerm = '') => {
   try {
     const wordsCollection = collection(db, 'words');
-    //const constraints = [where('isIrregular', '==', true)];
     let q;
 
     // Recherche active 
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
-      const searchEnd = searchLower + '\uf8ff'; // Caractère spécial Unicode pour dire "jusqu'à la fin"
+      const searchEnd = searchLower + '\uf8ff'; 
 
-      // Note: Pour chercher, on force le tri alphabétique car Firestore l'exige pour les requêtes de plage (range queries)
       const constraints = [
         where('isIrregular', '==', true),
         orderBy('word'), 
@@ -297,120 +283,15 @@ export const getIrregularWordsPaginated = async (lastVisibleDoc = null, searchTe
     const querySnapshot = await getDocs(q);
     const docs = querySnapshot.docs;
 
-    // On retourne les données + le dernier doc pour la prochaine requête
+    // Retourne les données + lastDoc pour prochaine requête
     return {
       words: docs.map(doc => ({ id: doc.id, ...doc.data() })),
-      lastVisible: docs.length > 0 ? docs[docs.length - 1] : null, // À stocker dans votre state React/Vue
+      lastVisible: docs.length > 0 ? docs[docs.length - 1] : null,
       hasMore: docs.length === WORDS_PER_PAGE
     };
 
   } catch (error) {
     console.error('Erreur récupération mots paginés:', error);
     return { words: [], lastVisible: null, hasMore: false };
-  }
-};
-
-
-
-// Anciennes fonctions conservées pour compatibilité (peuvent être supprimées si non utilisées ailleurs)
-export const getWordsByLevel = async (level) => {
-  try {
-    const wordsCollection = collection(db, 'words');
-    const q = query(
-      wordsCollection, 
-      where('level', '==', level),
-      orderBy('frequency', 'desc')
-    );
-    
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-  } catch (error) {
-    console.error('Erreur récupération mots:', error);
-    try {
-      const wordsCollection = collection(db, 'words');
-      const q = query(wordsCollection, where('level', '==', level));
-      const querySnapshot = await getDocs(q);
-      const words = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      return words.sort((a, b) => (b.frequency || 0) - (a.frequency || 0));
-    } catch (fallbackError) {
-      console.error('Erreur fallback:', fallbackError);
-      return [];
-    }
-  }
-};
-
-export const getIrregularWords = async () => {
-  try {
-    const wordsCollection = collection(db, 'words');
-    const q = query(
-      wordsCollection,
-      where('isIrregular', '==', true)
-    );
-    
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-  } catch (error) {
-    console.error('Erreur récupération mots irréguliers:', error);
-    return [];
-  }
-};
-
-export const getAllWords = async () => {
-  try {
-    const wordsCollection = collection(db, 'words');
-    const querySnapshot = await getDocs(wordsCollection);
-    
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-  } catch (error) {
-    console.error('Erreur récupération tous les mots:', error);
-    return [];
-  }
-};
-
-export const searchWordsInFirestore = async (searchTerm, filters = {}) => {
-  try {
-    let q = collection(db, 'words');
-    const constraints = [];
-    
-    if (filters.level) {
-      constraints.push(where('level', '==', filters.level));
-    }
-    
-    if (filters.isIrregular !== undefined) {
-      constraints.push(where('isIrregular', '==', filters.isIrregular));
-    }
-    
-    if (constraints.length > 0) {
-      q = query(q, ...constraints);
-    }
-    
-    const querySnapshot = await getDocs(q);
-    const allWords = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    
-    if (searchTerm) {
-      return allWords.filter(wordData => 
-        wordData.word.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    
-    return allWords;
-  } catch (error) {
-    console.error('Erreur recherche mots:', error);
-    return [];
   }
 };

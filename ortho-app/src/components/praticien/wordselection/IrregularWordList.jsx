@@ -2,17 +2,15 @@ import { useState, useEffect } from 'react';
 import { ArrowRight, ChevronRight } from 'lucide-react';
 import { getIrregularWordsPaginated } from '../../../services/manulexService';
 
-// Irregular Word List avec PAGINATION OPTIMISÉE (Load More)
 const IrregularWordList = ({ onBack, selectedWords, setSelectedWords }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [words, setWords] = useState([]); // Liste cumulée
+  const [words, setWords] = useState([]); 
   const [loading, setLoading] = useState(false);
-  const [lastDoc, setLastDoc] = useState(null); // Curseur Firestore
+  const [lastDoc, setLastDoc] = useState(null);
   const [hasMore, setHasMore] = useState(false);
 
-  // Recharger si la recherche change
   useEffect(() => {
-    // On passe true pour dire "Reset complet"
+    // Reset complet pour recherche specifique
     loadWords(true);
   }, [searchTerm]);
 
@@ -21,14 +19,13 @@ const IrregularWordList = ({ onBack, selectedWords, setSelectedWords }) => {
     setLoading(true);
     
     try {
-      // Si c'est un reset, curseur = null. Sinon on prend le dernier doc.
+      // Si reset alors null sinon on utilise lastDoc
       const cursor = isReset ? null : lastDoc;
       const result = await getIrregularWordsPaginated(cursor, searchTerm);
       
       if (isReset) {
         setWords(result.words);
       } else {
-        // On ajoute à la suite
         setWords(prev => [...prev, ...result.words]);
       }
       
