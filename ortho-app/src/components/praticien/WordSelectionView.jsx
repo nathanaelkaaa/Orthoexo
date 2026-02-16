@@ -5,6 +5,7 @@ import GAME_TYPE from '../../constants/GAME_TYPE';
 import AnagramExercise from '../exercises/AnagramExercise';
 import MemoryExercise from '../exercises/MemoryExercise';
 import HangmanExercise from '../exercises/HangmanExercise';
+import SearchExercise from '../exercises/SearchExercise';
 import PractitionerMonitor from './PractitionerMonitor';
 import CustomWordList from './wordselection/CustomWordList';
 import FrequencyWordList from './wordselection/FrequencyWordList';
@@ -202,6 +203,19 @@ const WordSelectionView = ({ currentUser, onBack }) => {
           }}
         />
       )}
+
+      {/* Vue Search (Test Praticien) */}
+      {wordView === 'exercise-search' && (
+        <SearchExercise
+          selectedWords={selectedWords}
+          onBack={() => setWordView('exerciseType')}
+          onFinish={(results) => {
+            saveExerciseToHistory('search', selectedWords, results);
+            setWordView('selection');
+          }}
+        />
+      )}
+
     </div>
   );
 };

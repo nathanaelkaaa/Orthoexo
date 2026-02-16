@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, BarChart3, Clock, RefreshCw, Brain, Layers, MessageSquare, CheckCircle, XCircle, LayoutList } from 'lucide-react';
+import { 
+  ArrowRight, BarChart3, Clock, RefreshCw, Brain, Layers, 
+  MessageSquare, CheckCircle, XCircle, LayoutList, Search 
+} from 'lucide-react';
 import GAME_TYPE from '../../constants/GAME_TYPE';
+import GAME_LABELS from '../../constants/GAME_LABELS';
 
 const HistoryView = ({ onBack }) => {
   const [history, setHistory] = useState([]);
@@ -52,22 +56,29 @@ const HistoryView = ({ onBack }) => {
     switch (type) {
       case GAME_TYPE.memory:
         return {
-          label: 'Memory',
+          label: GAME_LABELS.memory,
           badgeClass: 'bg-purple-100 text-purple-700',
           cardGradient: 'bg-gradient-to-br from-purple-500 to-indigo-600',
           Icon: Brain
         };
       case GAME_TYPE.hangman:
         return {
-          label: 'Pendu',
+          label: GAME_LABELS.hangman,
           badgeClass: 'bg-orange-100 text-orange-700',
           cardGradient: 'bg-gradient-to-br from-orange-500 to-red-600',
           Icon: LayoutList
         };
+      case GAME_TYPE.search:
+        return {
+          label: GAME_LABELS.search,
+          badgeClass: 'bg-green-100 text-green-700',
+          cardGradient: 'bg-gradient-to-br from-green-500 to-emerald-600',
+          Icon: Search
+        };
       case GAME_TYPE.anagram:
       default:
         return {
-          label: 'Anagramme',
+          label: GAME_LABELS.anagram,
           badgeClass: 'bg-blue-100 text-blue-700',
           cardGradient: 'bg-gradient-to-br from-blue-500 to-cyan-600',
           Icon: BarChart3
@@ -131,8 +142,8 @@ const HistoryView = ({ onBack }) => {
                 <span className={`font-bold block ${result.correct ? 'text-gray-800' : 'text-red-700'}`}>
                   {result.word}
                 </span>
-                {/* Affiche la réponse utilisateur si c'est une anagramme et que c'est faux */}
-                {!result.correct && result.userAnswer && exercise.type === GAME_TYPE.anagram && (
+                {/* Affiche la réponse utilisateur si c'est faux */}
+                {!result.correct && result.userAnswer && (
                    <span className="text-xs text-gray-500">Réponse: {result.userAnswer}</span>
                 )}
               </div>
@@ -168,6 +179,25 @@ const HistoryView = ({ onBack }) => {
         <div className="text-right">
            <span className="text-3xl font-bold text-blue-600">{exercise.score}/{exercise.total}</span>
            <p className="text-xs text-blue-600 uppercase font-bold">Score</p>
+        </div>
+      </div>
+      {renderGenericDetailsList(exercise)}
+    </>
+  );
+
+  // Vue Détail : Recherche 
+  const renderSearchDetails = (exercise) => (
+    <>
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex justify-between items-center">
+        <div>
+          <p className="text-green-800 font-medium">Réussite globale</p>
+          <p className="text-green-700 text-sm mt-1 font-bold">
+            {Math.round((exercise.score / exercise.total) * 100)}%
+          </p>
+        </div>
+        <div className="text-right">
+           <span className="text-3xl font-bold text-green-600">{exercise.score}/{exercise.total}</span>
+           <p className="text-xs text-green-600 uppercase font-bold">Score</p>
         </div>
       </div>
       {renderGenericDetailsList(exercise)}
@@ -241,6 +271,8 @@ const HistoryView = ({ onBack }) => {
     );
   };
 
+  // --- VUE PRINCIPALE ---
+
   if (selectedExercise) {
     const config = getGameConfig(selectedExercise.type);
     const DetailIcon = config.Icon;
@@ -265,10 +297,13 @@ const HistoryView = ({ onBack }) => {
               <p className="text-gray-500 text-sm">{formatDate(selectedExercise.date)}</p>
             </div>
           </div>
+
+          {/* Router des détails */}
           {(() => {
             switch (selectedExercise.type) {
               case GAME_TYPE.memory: return renderMemoryDetails(selectedExercise);
               case GAME_TYPE.hangman: return renderHangmanDetails(selectedExercise);
+              case GAME_TYPE.search: return renderSearchDetails(selectedExercise); // Ajout
               default: return renderAnagramDetails(selectedExercise);
             }
           })()}
@@ -277,7 +312,7 @@ const HistoryView = ({ onBack }) => {
     );
   }
 
-  // Vue grid
+  // Vue Grille
   return (
     <div>
       <button 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, MessageSquare, Play, LayoutList } from 'lucide-react';
+import { ArrowRight, MessageSquare, Play, LayoutList, Search } from 'lucide-react';
 import GAME_TYPE from '../../constants/GAME_TYPE';
 
 const ExerciseTypeSelection = ({ onBack, selectedWords, onSelectType, onLaunchForPatient }) => {
@@ -105,6 +105,30 @@ const ExerciseTypeSelection = ({ onBack, selectedWords, onSelectType, onLaunchFo
             <Play className="w-4 h-4" /> Lancer ({exerciseCount} question(s))
           </button>
         </div>
+
+        {/* Carte Recherche */}
+        <div className="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition cursor-pointer group relative">
+          <div onClick={() => onSelectType(GAME_TYPE.search)}>
+            <Search className="w-16 h-16 text-green-600 mb-4 group-hover:scale-110 transition" />
+            <h3 className="text-xl font-bold mb-2">Recherche</h3>
+            <p className="text-gray-600 text-sm mb-4">
+              Trouve le bon mot parmi plusieurs choix disposés de façon chaotique
+            </p>
+          </div>
+
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onLaunchForPatient) {
+                onLaunchForPatient(exerciseCount, GAME_TYPE.search);
+              }
+            }}
+            className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2 mt-2 font-bold shadow-md transition hover:scale-[1.02]"
+          >
+            <Play className="w-4 h-4" /> Lancer ({exerciseCount} questions)
+          </button>
+        </div>
+        
       </div>
     </div>
   );

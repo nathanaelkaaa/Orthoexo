@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check, X, Clock, RefreshCw, Brain, LayoutList } from 'lucide-react';
+import { Check, X, Clock, RefreshCw, Brain, LayoutList, Search } from 'lucide-react';
 import { observeSessionById, deleteSession } from '../../services/firestoreService';
 import GAME_TYPE from '../../constants/GAME_TYPE';
 import GAME_LABELS from '../../constants/GAME_LABELS';
@@ -10,7 +10,7 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
   const gameType = liveData.type;
 
   const checkIsFinished = () => {
-    if (gameType === GAME_TYPE.anagram || gameType === GAME_TYPE.hangman) {
+    if (gameType === GAME_TYPE.anagram || gameType === GAME_TYPE.hangman || gameType === GAME_TYPE.search) {
       return answers.length >= (liveData.words?.length || 0);
     }
     if (gameType === GAME_TYPE.memory) {
@@ -60,6 +60,8 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
         return renderAnagramView();
       case GAME_TYPE.hangman:
         return renderHangmanView();
+      case GAME_TYPE.search:
+        return renderSearchView();
       case GAME_TYPE.memory:
         return renderMemoryView();
       default:
@@ -117,6 +119,57 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
     </div>
   );
 
+  // Rendu Recherche
+  const renderSearchView = () => (
+    <div className="grid grid-cols-2 gap-8 mb-8">
+      <div>
+        <h3 className="font-bold mb-4 flex items-center gap-2 text-emerald-700">
+          <Search className="w-5 h-5 text-emerald-600" />
+          Mots à trouver
+        </h3>
+        <ul className="space-y-2 max-h-[400px] overflow-y-auto">
+          {liveData.words.map((word, idx) => {
+            const answer = answers.find(a => a.word === word) || answers[idx];
+            
+            const statusColor = answer 
+              ? (answer.correct ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200") 
+              : "bg-gray-50 text-gray-400 border-gray-200";
+
+            return (
+              <li key={idx} className={`flex items-center justify-between p-3 rounded border ${statusColor}`}>
+                <span className="font-medium">{word}</span>
+                <span className="flex items-center gap-2">
+                  {answer ? (
+                    <>
+                      <span className="font-bold">{answer.userAnswer}</span>
+                      {answer.correct ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                    </>
+                  ) : (
+                    <span className="text-sm italic">...</span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <div className="bg-emerald-50 p-6 rounded-xl flex flex-col justify-center text-center h-fit border border-emerald-100">
+        <h3 className="text-xl font-bold mb-2 text-emerald-800">Score</h3>
+        <div className="text-6xl font-black text-emerald-600 mb-2">
+          {answers.filter(a => a.correct).length} <span className="text-3xl text-gray-400 font-normal">/ {liveData.words.length}</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2.5 mt-4">
+          <div 
+            className="bg-emerald-500 h-2.5 rounded-full transition-all duration-500" 
+            style={{ width: `${(answers.length / liveData.words.length) * 100}%` }}
+          ></div>
+        </div>
+        <p className="text-sm text-gray-500 mt-2">Progression</p>
+      </div>
+    </div>
+  );
+
   // Rendu pendu
   const renderHangmanView = () => (
     <div className="grid grid-cols-2 gap-8 mb-8">
@@ -128,7 +181,6 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
         <ul className="space-y-2 max-h-[400px] overflow-y-auto">
           {liveData.words.map((word, idx) => {
             const answer = answers.find(a => a.word === word.toUpperCase()) || answers[idx];
-            // Note: On compare souvent en uppercase pour le pendu
             
             const statusColor = answer 
               ? (answer.correct ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200") 

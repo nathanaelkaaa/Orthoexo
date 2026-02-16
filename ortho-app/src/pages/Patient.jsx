@@ -10,11 +10,13 @@ import PatientReady from '../components/patient/PatientReady';
 
 import AnagramResult from '../components/exercises/results/AnagramResult';
 import MemoryResult from '../components/exercises/results/MemoryResult';
-import HangmanResult from '../components/exercises/results/HangmanResult'; // Ajouté
+import HangmanResult from '../components/exercises/results/HangmanResult';
+import SearchResult from '../components/exercises/results/SearchResult';
 
 import AnagramExercise from '../components/exercises/AnagramExercise';
 import MemoryExercise from '../components/exercises/MemoryExercise';
-import HangmanExercise from '../components/exercises/HangmanExercise'; // Ajouté
+import HangmanExercise from '../components/exercises/HangmanExercise';
+import SearchExercise from '../components/exercises/SearchExercise';
 
 import GAME_TYPE from '../constants/GAME_TYPE';
 
@@ -101,6 +103,13 @@ const Patient = ({ currentUser, onBack }) => {
               onFinish={handleFinished}
             />
           )}
+          {session.type === GAME_TYPE.search && (
+            <SearchExercise 
+              session={session}
+              isPatientMode={true}
+              onFinish={handleFinished}
+            />
+          )}
         </>
       )}
 
@@ -122,6 +131,12 @@ const Patient = ({ currentUser, onBack }) => {
           )}
           {session.type === GAME_TYPE.hangman && (
             <HangmanResult 
+              session={session}
+              onReturnToStart={handleReturnToStart}
+            />
+          )}
+          {session.type === GAME_TYPE.search && (
+            <SearchResult 
               session={session}
               onReturnToStart={handleReturnToStart}
             />
