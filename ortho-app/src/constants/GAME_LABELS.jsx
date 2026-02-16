@@ -1,5 +1,6 @@
   const GAME_LABELS = {
   anagram: 'Anagramme',
-  memory: 'Memory'
+  memory: 'Memory',
+  hangman: 'Pendu'
   };
   export default GAME_LABELS;

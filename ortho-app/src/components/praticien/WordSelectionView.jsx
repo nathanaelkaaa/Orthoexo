@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight} from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { createSession } from '../../services/firestoreService';
+import GAME_TYPE from '../../constants/GAME_TYPE';
 import AnagramExercise from '../exercises/AnagramExercise';
 import MemoryExercise from '../exercises/MemoryExercise';
+import HangmanExercise from '../exercises/HangmanExercise';
 import PractitionerMonitor from './PractitionerMonitor';
 import CustomWordList from './wordselection/CustomWordList';
 import FrequencyWordList from './wordselection/FrequencyWordList';
@@ -165,6 +167,7 @@ const WordSelectionView = ({ currentUser, onBack }) => {
         />
       )}
 
+      {/* Vue Anagramme (Test Praticien) */}
       {wordView === 'exercise-anagram' && (
         <AnagramExercise
           selectedWords={selectedWords}
@@ -176,12 +179,25 @@ const WordSelectionView = ({ currentUser, onBack }) => {
         />
       )}
 
+      {/* Vue Memory (Test Praticien) */}
       {wordView === 'exercise-memory' && (
         <MemoryExercise
           selectedWords={selectedWords}
           onBack={() => setWordView('exerciseType')}
           onFinish={(results) => {
             saveExerciseToHistory(GAME_TYPE.memory, selectedWords, results);
+            setWordView('selection');
+          }}
+        />
+      )}
+
+      {/* Vue Pendu (Test Praticien) */}
+      {wordView === 'exercise-hangman' && (
+        <HangmanExercise
+          selectedWords={selectedWords}
+          onBack={() => setWordView('exerciseType')}
+          onFinish={(results) => {
+            saveExerciseToHistory(GAME_TYPE.hangman, selectedWords, results);
             setWordView('selection');
           }}
         />

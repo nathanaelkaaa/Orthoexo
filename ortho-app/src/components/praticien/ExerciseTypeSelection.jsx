@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, MessageSquare, Play } from 'lucide-react';
+import { ArrowRight, MessageSquare, Play, LayoutList } from 'lucide-react';
 import GAME_TYPE from '../../constants/GAME_TYPE';
 
 const ExerciseTypeSelection = ({ onBack, selectedWords, onSelectType, onLaunchForPatient }) => {
@@ -44,6 +44,7 @@ const ExerciseTypeSelection = ({ onBack, selectedWords, onSelectType, onLaunchFo
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Carte Anagramme */}
         <div className="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition cursor-pointer group relative">
           <div onClick={() => onSelectType('anagram')}>
             <MessageSquare className="w-16 h-16 text-blue-600 mb-4 group-hover:scale-110 transition" />
@@ -55,32 +56,53 @@ const ExerciseTypeSelection = ({ onBack, selectedWords, onSelectType, onLaunchFo
             onClick={(e) => {
               e.stopPropagation();
               if (onLaunchForPatient) {
-                onLaunchForPatient(exerciseCount,GAME_TYPE.anagram);
+                onLaunchForPatient(exerciseCount, GAME_TYPE.anagram);
               }
             }}
             className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2 mt-2 font-bold shadow-md transition hover:scale-[1.02]"
           >
-            <Play className="w-4 h-4" /> Lancer ({exerciseCount} questions)
+            <Play className="w-4 h-4" /> Lancer ({exerciseCount} question(s))
           </button>
         </div>
 
+        {/* Carte Memory */}
         <div className="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition cursor-pointer group relative">
           <div onClick={() => onSelectType(GAME_TYPE.memory)}>
             <MessageSquare className="w-16 h-16 text-green-600 mb-4 group-hover:scale-110 transition" />
             <h3 className="text-xl font-bold mb-2">Memory</h3>
-            <p className="text-gray-600 text-sm mb-4">Retrouvez le mot correct à partir des lettres mélangées</p>
+            <p className="text-gray-600 text-sm mb-4">Retrouvez les paires de mots identiques</p>
+          </div>
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onLaunchForPatient) {
+                onLaunchForPatient(exerciseCount, GAME_TYPE.memory);
+              }
+            }}
+            className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2 mt-2 font-bold shadow-md transition hover:scale-[1.02]"
+          >
+            <Play className="w-4 h-4" /> Lancer ({exerciseCount} question(s))
+          </button>
+        </div>
+
+        {/* Carte Pendu */}
+        <div className="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition cursor-pointer group relative">
+          <div onClick={() => onSelectType(GAME_TYPE.hangman)}>
+            <LayoutList className="w-16 h-16 text-orange-600 mb-4 group-hover:scale-110 transition" />
+            <h3 className="text-xl font-bold mb-2">Pendu</h3>
+            <p className="text-gray-600 text-sm mb-4">Devinez le mot caché lettre par lettre</p>
           </div>
 
           <button 
             onClick={(e) => {
               e.stopPropagation();
               if (onLaunchForPatient) {
-                onLaunchForPatient(exerciseCount,GAME_TYPE.memory);
+                onLaunchForPatient(exerciseCount, GAME_TYPE.hangman);
               }
             }}
             className="w-full py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2 mt-2 font-bold shadow-md transition hover:scale-[1.02]"
           >
-            <Play className="w-4 h-4" /> Lancer ({exerciseCount} questions)
+            <Play className="w-4 h-4" /> Lancer ({exerciseCount} question(s))
           </button>
         </div>
       </div>

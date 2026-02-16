@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check, X, Clock, RefreshCw, Brain } from 'lucide-react';
+import { Check, X, Clock, RefreshCw, Brain, LayoutList } from 'lucide-react';
 import { observeSessionById, deleteSession } from '../../services/firestoreService';
 import GAME_TYPE from '../../constants/GAME_TYPE';
 import GAME_LABELS from '../../constants/GAME_LABELS';
@@ -10,14 +10,15 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
   const gameType = liveData.type;
 
   const checkIsFinished = () => {
-    if (gameType === 'anagram') {
+    if (gameType === GAME_TYPE.anagram || gameType === GAME_TYPE.hangman) {
       return answers.length >= (liveData.words?.length || 0);
     }
-    if (gameType === 'memory') {
+    if (gameType === GAME_TYPE.memory) {
       return answers.some(a => a.completed === true);
     }
-      return false;
+    return false;
   };
+
   const isFinished = checkIsFinished();
 
   useEffect(() => {
@@ -27,7 +28,7 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
     return () => unsubscribe();
   }, [sessionData.id]);
 
-  // Suppression Automatique
+  // Suppression Automatique avec délai
   useEffect(() => {
     const autoDelete = async () => {
       if (isFinished && sessionData?.id) {
@@ -38,6 +39,7 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
         }
       }
     };
+
     if (isFinished) {
       // Délai de 10 secondes avant suppression
       const timer = setTimeout(() => {
@@ -48,21 +50,22 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
   }, [isFinished, sessionData.id]);
 
   const handleFinishAndSave = () => {
-    // On sauvegarde dans l'historique
     saveExerciseToHistory(gameType, liveData.words, answers);
     onFinish();
   };
 
   const renderGameContent = () => {
-  switch (gameType) {
-    case GAME_TYPE.anagram:
-      return renderAnagramView();
-    case GAME_TYPE.memory:
-      return renderMemoryView();
-    default:
-      return <div>Sélectionnez un jeu</div>;
-  }
-};
+    switch (gameType) {
+      case GAME_TYPE.anagram:
+        return renderAnagramView();
+      case GAME_TYPE.hangman:
+        return renderHangmanView();
+      case GAME_TYPE.memory:
+        return renderMemoryView();
+      default:
+        return <div className="text-center text-gray-500 py-10">Type de jeu inconnu : {gameType}</div>;
+    }
+  };
 
   // Rendu anagram
   const renderAnagramView = () => (
@@ -80,10 +83,7 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
               : "bg-gray-50 text-gray-400 border-gray-200";
 
             return (
-              <li 
-                key={idx} 
-                className={`flex items-center justify-between p-3 rounded border ${statusColor}`}
-              >
+              <li key={idx} className={`flex items-center justify-between p-3 rounded border ${statusColor}`}>
                 <span className="font-medium">{word}</span>
                 <span className="flex items-center gap-2">
                   {answer ? (
@@ -92,7 +92,7 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
                       {answer.correct ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
                     </>
                   ) : (
-                    <span className="text-sm italic">En attente...</span>
+                    <span className="text-sm italic">...</span>
                   )}
                 </span>
               </li>
@@ -101,14 +101,70 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
         </ul>
       </div>
 
-      <div className="bg-blue-50 p-6 rounded-xl flex flex-col justify-center text-center h-fit">
-        <h3 className="text-xl font-bold mb-2">Note actuelle</h3>
+      <div className="bg-blue-50 p-6 rounded-xl flex flex-col justify-center text-center h-fit border border-blue-100">
+        <h3 className="text-xl font-bold mb-2 text-blue-800">Note actuelle</h3>
         <div className="text-6xl font-black text-blue-600 mb-2">
           {answers.filter(a => a.correct).length} <span className="text-3xl text-gray-400 font-normal">/ {liveData.words.length}</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2.5 mt-4">
           <div 
             className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
+            style={{ width: `${(answers.length / liveData.words.length) * 100}%` }}
+          ></div>
+        </div>
+        <p className="text-sm text-gray-500 mt-2">Progression</p>
+      </div>
+    </div>
+  );
+
+  // Rendu pendu
+  const renderHangmanView = () => (
+    <div className="grid grid-cols-2 gap-8 mb-8">
+      <div>
+        <h3 className="font-bold mb-4 flex items-center gap-2 text-orange-700">
+          <LayoutList className="w-5 h-5 text-orange-600" />
+          Mots à deviner
+        </h3>
+        <ul className="space-y-2 max-h-[400px] overflow-y-auto">
+          {liveData.words.map((word, idx) => {
+            const answer = answers.find(a => a.word === word.toUpperCase()) || answers[idx];
+            // Note: On compare souvent en uppercase pour le pendu
+            
+            const statusColor = answer 
+              ? (answer.correct ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200") 
+              : "bg-gray-50 text-gray-400 border-gray-200";
+
+            return (
+              <li key={idx} className={`flex items-center justify-between p-3 rounded border ${statusColor}`}>
+                <span className="font-medium uppercase">{word}</span>
+                <span className="flex items-center gap-2">
+                  {answer ? (
+                    <>
+                      {answer.correct ? (
+                        <span className="text-xs font-bold bg-green-200 px-2 py-1 rounded text-green-800">TROUVÉ</span>
+                      ) : (
+                        <span className="text-xs font-bold bg-red-200 px-2 py-1 rounded text-red-800">ÉCHOUÉ</span>
+                      )}
+                      {answer.correct ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                    </>
+                  ) : (
+                    <span className="text-sm italic">...</span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <div className="bg-orange-50 p-6 rounded-xl flex flex-col justify-center text-center h-fit border border-orange-100">
+        <h3 className="text-xl font-bold mb-2 text-orange-800">Mots trouvés</h3>
+        <div className="text-6xl font-black text-orange-600 mb-2">
+          {answers.filter(a => a.correct).length} <span className="text-3xl text-gray-400 font-normal">/ {liveData.words.length}</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2.5 mt-4">
+          <div 
+            className="bg-orange-500 h-2.5 rounded-full transition-all duration-500" 
             style={{ width: `${(answers.length / liveData.words.length) * 100}%` }}
           ></div>
         </div>
@@ -167,7 +223,7 @@ const PractitionerMonitor = ({ sessionData, onFinish, saveExerciseToHistory }) =
             Suivi Patient en Direct
           </h2>
           <p className="text-gray-500 text-sm mt-1 ml-6">
-            Exercice : <span className="font-semibold capitalize">{GAME_LABELS[gameType]}</span>
+            Exercice : <span className="font-semibold capitalize">{GAME_LABELS[gameType] || gameType}</span>
           </p>
         </div>
         

@@ -7,10 +7,15 @@ import {
 } from '../services/firestoreService';
 import PatientWaiting from '../components/patient/PatientWaiting';
 import PatientReady from '../components/patient/PatientReady';
+
 import AnagramResult from '../components/exercises/results/AnagramResult';
 import MemoryResult from '../components/exercises/results/MemoryResult';
+import HangmanResult from '../components/exercises/results/HangmanResult'; // Ajouté
+
 import AnagramExercise from '../components/exercises/AnagramExercise';
 import MemoryExercise from '../components/exercises/MemoryExercise';
+import HangmanExercise from '../components/exercises/HangmanExercise'; // Ajouté
+
 import GAME_TYPE from '../constants/GAME_TYPE';
 
 const Patient = ({ currentUser, onBack }) => {
@@ -89,6 +94,13 @@ const Patient = ({ currentUser, onBack }) => {
               onFinish={handleFinished}
             />
           )}
+          {session.type === GAME_TYPE.hangman && (
+            <HangmanExercise 
+              session={session}
+              isPatientMode={true}
+              onFinish={handleFinished}
+            />
+          )}
         </>
       )}
 
@@ -104,6 +116,12 @@ const Patient = ({ currentUser, onBack }) => {
           
           {session.type === GAME_TYPE.memory && (
             <MemoryResult 
+              session={session}
+              onReturnToStart={handleReturnToStart}
+            />
+          )}
+          {session.type === GAME_TYPE.hangman && (
+            <HangmanResult 
               session={session}
               onReturnToStart={handleReturnToStart}
             />
